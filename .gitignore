@@ -1,0 +1,6 @@
+backend/node_modules/
+backend/dist/
+backend/generated/
+.env
+tsconfig.build.tsbuildinfo
+docs/ENDPOINTS.md

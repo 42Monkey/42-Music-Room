@@ -1,0 +1,184 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// V.1
+enum Role {
+  USER
+  ADMIN
+}
+
+// V.2
+enum RoomKind {
+  VOTE
+  PLAYLIST
+}
+
+// V.2
+enum Visibility {
+  PUBLIC
+  PRIVATE
+}
+
+// V.2
+enum AccessPolicy {
+  OPEN
+  INVITE_ONLY
+  RESTRICTED
+}
+
+// No BLOCKED or DECLINED status on purpose, not required
+enum FriendshipStatus {
+  PENDING
+  ACCEPTED
+}
+
+// V.1
+model User {
+  id                     String   @id @default(uuid())
+  email                  String?  @unique
+  passwordHash           String?
+  emailVerified          Boolean  @default(false)
+  emailVerificationToken String?  @unique
+  passwordResetToken     String?  @unique
+  passwordResetExpiresAt DateTime?
+  displayName            String
+  role                   Role     @default(USER)
+
+  // profile tiers
+  bio                    String?
+  avatarUrl              String?
+  location               String? // friends-only
+  phoneNumber            String? // friends-only
+  musicPreference        Json?   // public
+
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  googleAccount GoogleAccount?
+  ownedRooms    Room[]         @relation("RoomOwner")
+  memberships   RoomMember[]
+  votes         Vote[]
+  actionLogs    ActionLog[]
+
+  sentFriendRequests     Friendship[] @relation("FriendshipSender")
+  receivedFriendRequests Friendship[] @relation("FriendshipReceiver")
+}
+
+// V.1
+model GoogleAccount {
+  id       String @id @default(uuid())
+  googleId String @unique
+  userId   String @unique
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// V.2
+model Room {
+  id           String       @id @default(uuid())
+  name         String
+  description  String?
+  kind         RoomKind     @default(VOTE)
+  visibility   Visibility   @default(PUBLIC)
+  accessPolicy AccessPolicy @default(OPEN)
+
+  ownerId String
+  owner   User   @relation("RoomOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+
+  // V.2.1 RESTRICTED only
+  locationLat     Float?
+  locationLng     Float?
+  locationRadiusM Int?
+  windowStart     DateTime?
+  windowEnd       DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members RoomMember[]
+  tracks  Track[]
+
+  currentTrackId String? @unique
+  currentTrack   Track?  @relation("CurrentTrack", fields: [currentTrackId], references: [id], onDelete: SetNull)
+}
+
+// V.2.1 / V.2.3
+model RoomMember {
+  roomId String
+  userId String
+  room   Room   @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([roomId, userId])
+}
+
+model Track {
+  id         String   @id @default(uuid())
+  roomId     String
+  room       Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  provider   String   @default("deezer")
+  providerId String
+  title      String
+  artist     String
+  durationMs Int?
+
+  score    Int     @default(0)
+  position String?
+
+  addedAt  DateTime  @default(now())
+  playedAt DateTime?
+
+  votes         Vote[]
+  currentInRoom Room? @relation("CurrentTrack")
+
+  @@unique([roomId, providerId])
+  @@unique([roomId, position])
+  @@index([roomId, score])
+  @@index([roomId, position])
+}
+
+// V.2.1
+model Vote {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trackId   String
+  track     Track    @relation(fields: [trackId], references: [id], onDelete: Cascade)
+  value     Int      @default(1)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, trackId])
+}
+
+// V.6
+model ActionLog {
+  id         String   @id @default(uuid())
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action     String
+  endpoint   String
+  method     String
+  platform   String?
+  device     String?
+  appVersion String?
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+}
+
+model Friendship {
+  id         String           @id @default(uuid())
+  senderId   String
+  sender     User             @relation("FriendshipSender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiverId String
+  receiver   User             @relation("FriendshipReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+  status     FriendshipStatus @default(PENDING)
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+
+  @@unique([senderId, receiverId])
+}

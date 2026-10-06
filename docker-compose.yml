@@ -1,0 +1,125 @@
+version: '3.8'
+
+services:
+  nginx:
+    image: nginx:alpine
+    container_name: music-nginx
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      api-1:
+        condition: service_healthy
+      # api-2:
+      #   condition: service_healthy
+      # api-3:
+      #   condition: service_healthy
+
+  api-1:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: music-api-1
+    restart: unless-stopped
+    env_file: ./backend/.env
+    ports:
+    - "5555:5555"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  # uncomment when backend is done and ready for k6 tests
+  # also uncomment in nginx.conf
+  # api-2:
+  #   build:
+  #     context: ./backend
+  #     dockerfile: Dockerfile
+  #   container_name: music-api-2
+  #   restart: unless-stopped
+  #   env_file: ./backend/.env
+  #   ports:
+  #   - "5556:5555"
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_started
+  #   healthcheck:
+  #     test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/health"]
+  #     interval: 5s
+  #     timeout: 5s
+  #     retries: 5
+  #     start_period: 5s
+
+  # api-3:
+  #   build:
+  #     context: ./backend
+  #     dockerfile: Dockerfile
+  #   container_name: music-api-3
+  #   restart: unless-stopped
+  #   env_file: ./backend/.env
+  #   ports:
+  #   - "5557:5555"
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_started
+  #   healthcheck:
+  #     test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/health"]
+  #     interval: 5s
+  #     timeout: 5s
+  #     retries: 5
+  #     start_period: 5s
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: music-postgres
+    restart: always
+    env_file: ./backend/.env
+    ports:
+      - "5432:5432"
+    volumes:
+      - music-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: music-redis
+    restart: always
+    ports:
+      - "6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  mailhog:
+    image: mailhog/mailhog
+    container_name: music-mailhog
+    restart: always
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
+volumes:
+  music-pgdata:
+    name: music-pgdata
+
+networks:
+  default:
+    name: music-network
