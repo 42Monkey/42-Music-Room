@@ -218,4 +218,26 @@ export class AuthService {
 		}
 		return { id: user.id, email: user.email, role: user.role };
 	}
+
+	async createGoogleLinkState(userId: string): Promise<string> {
+		return this.jwt.signAsync(
+			{ purpose: 'google-link', userId },
+			{ expiresIn: '10m' },
+		);
+	}
+
+	async verifyGoogleLinkState(state: string): Promise<string> {
+		let payload: { purpose?: string; userId?: string };
+		try {
+			payload = await this.jwt.verifyAsync(state);
+		} catch {
+			throw new BadRequestException('Invalid or expired link request');
+		}
+
+		if (payload.purpose !== 'google-link' || !payload.userId) {
+			throw new BadRequestException('Invalid link request');
+		}
+
+		return payload.userId;
+	}
 }
