@@ -14,11 +14,11 @@
 ---
 
 ## Phase 3: Users & Friends Module
-- [ ] **3.1** Update `UpdateProfileDto` in `backend/src/modules/users/dto/update.dto.ts` to support `birthDate` (`@IsDateString()`)
-- [ ] **3.2** Verify `UsersService.getOwnProfile` returns `birthDate` and `UsersService.getProfileForViewer` keeps it strictly private (never exposed to friends or public)
-- [ ] **3.3** Implement `UsersService.searchUsers(query, limit)` returning **only public fields** (`id`, `displayName`, `avatarUrl`, `bio`, `musicPreference`)
-- [ ] **3.4** Add `GET /users?search=` endpoint in `backend/src/modules/users/users.controller.ts` with query validation and Swagger decorators
-- [ ] **3.5** Add `GET /friends/requests` endpoint in `backend/src/modules/users/friends.controller.ts` exposing `friendsService.getPendingRequests(req.user.id)` with Swagger decorators
+- [x] **3.1** Update `UpdateProfileDto` in `backend/src/modules/users/dto/update.dto.ts` to support `birthDate` (`@IsDateString()`)
+- [x] **3.2** Verify `UsersService.getOwnProfile` returns `birthDate` and `UsersService.getProfileForViewer` keeps it strictly private (never exposed to friends or public)
+- [x] **3.3** Implement `UsersService.searchUsers(query, limit)` returning **only public fields** (`id`, `displayName`, `avatarUrl`, `bio`, `musicPreference`)
+- [x] **3.4** Add `GET /users?search=` endpoint in `backend/src/modules/users/users.controller.ts` with query validation and Swagger decorators
+- [x] **3.5** Add `GET /friends/requests` endpoint in `backend/src/modules/users/friends.controller.ts` exposing `friendsService.getPendingRequests(req.user.id)` with Swagger decorators
 
 ---
 

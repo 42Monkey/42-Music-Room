@@ -1,5 +1,5 @@
-import { Body, Controller, Get, Param, Patch, Req, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Get, Param, Patch, Query, Req, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { UsersService } from './users.service';
 import { UpdateProfileDto } from './dto/update.dto';
@@ -16,6 +16,14 @@ interface AuthenticatedUser {
 @UseGuards(JwtAuthGuard)
 export class UsersController {
 	constructor(private usersService: UsersService) {}
+
+	@Get()
+	@ApiOperation({ summary: 'Search users by display name or email' })
+	@ApiQuery({ name: 'search', required: false, description: 'Query string to search users' })
+	@ApiResponse({ status: 200, description: 'List of matching users with public profile fields only' })
+	searchUsers(@Query('search') search?: string) {
+		return this.usersService.searchUsers(search);
+	}
 
 	@Get('me')
 	@ApiOperation({ summary: 'Get the authenticated user profile' })

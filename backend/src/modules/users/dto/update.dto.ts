@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsObject, MaxLength } from 'class-validator';
+import { IsOptional, IsString, IsObject, MaxLength, IsDateString } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class UpdateProfileDto {
@@ -35,4 +35,9 @@ export class UpdateProfileDto {
 	@IsOptional()
 	@IsObject()
 	musicPreference?: Record<string, any>;
+
+	@ApiPropertyOptional({ example: '1995-05-15', description: 'User birth date (ISO date string, strictly private)' })
+	@IsOptional()
+	@IsDateString()
+	birthDate?: string;
 }
