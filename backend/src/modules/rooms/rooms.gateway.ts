@@ -4,6 +4,7 @@ import { OnEvent } from '@nestjs/event-emitter';
 import { Logger, UseGuards } from '@nestjs/common';
 import { WsJwtGuard } from '../auth/guards/ws-jwt.guard';
 import { RoomsService } from './rooms.service';
+import { PrismaService } from '../../prisma/prisma.service';
 
 interface AuthedSocket extends Socket {
 	user?: { id: string; email: string | null; role: string };
@@ -14,7 +15,10 @@ export class RoomsGateway implements OnGatewayDisconnect {
 	@WebSocketServer() server: Server;
 	private readonly logger = new Logger(RoomsGateway.name);
 
-	constructor(private roomsService: RoomsService) {}
+	constructor(
+		private roomsService: RoomsService,
+		private prisma: PrismaService,
+	) {}
 
 	// check room access permission
 	// adds authenticated client to the live room channel
@@ -25,20 +29,26 @@ export class RoomsGateway implements OnGatewayDisconnect {
 		@MessageBody() data: { roomId: string },
 	) {
 		const userId = client.user!.id;
-
+	
 		// validates room visibility against permissions
 		await this.roomsService.findOneVisibleTo(data.roomId, userId);
-
+	
 		client.join(this.channel(data.roomId));
 		this.logger.log(`User ${userId} joined room ${data.roomId}`);
+		await this.logAction(client, userId, 'joinRoom', data.roomId);
 		return { event: 'joinedRoom', data: { roomId: data.roomId } };
 	}
-
+	
 	// removes client from the specified room's live socket channel
 	@UseGuards(WsJwtGuard)
 	@SubscribeMessage('leaveRoom')
-	handleLeaveRoom(@ConnectedSocket() client: Socket, @MessageBody() data: { roomId: string }) {
+	async handleLeaveRoom(
+		@ConnectedSocket() client: AuthedSocket,
+		@MessageBody() data: { roomId: string },
+	) {
+		const userId = client.user?.id ?? null;
 		client.leave(this.channel(data.roomId));
+		await this.logAction(client, userId, 'leaveRoom', data.roomId);
 		return { event: 'leftRoom', data: { roomId: data.roomId } };
 	}
 
@@ -61,5 +71,22 @@ export class RoomsGateway implements OnGatewayDisconnect {
 	@OnEvent('room.playback.next')
 	handlePlaybackNext(payload: { roomId: string }) {
 		this.server.to(this.channel(payload.roomId)).emit('playback:next');
+	}
+
+	private async logAction(client: AuthedSocket, userId: string | null, action: string, roomId: string ) {
+		await this.prisma.actionLog.create({
+			data: {
+				userId,
+				action: `WS ${action}`,
+				endpoint: this.channel(roomId),
+				method: 'WS',
+				platform: (client.handshake.headers['x-platform'] as string) ?? null,
+				device: (client.handshake.headers['x-device'] as string) ?? null,
+				appVersion: (client.handshake.headers['x-app-version'] as string) ?? null,
+				ipAddress: client.handshake.address ?? null,
+			},
+		}).catch((err) => {
+			this.logger.error('Action Logs failed:', err);
+		});
 	}
 }

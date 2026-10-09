@@ -5,7 +5,7 @@ import { SendFriendRequestDto } from './dto/friends.dto';
 import type { Request } from 'express';
 
 interface AuthenticatedUser {
-	sub: string;
+	id: string;
 	email: string | null;
 }
 
@@ -19,7 +19,7 @@ export class FriendsController {
 		@Req() req: Request & { user: AuthenticatedUser },
 		@Body() dto: SendFriendRequestDto,
 	) {
-		return this.friendsService.sendRequest(req.user.sub, dto.receiverId);
+		return this.friendsService.sendRequest(req.user.id, dto.receiverId);
 	}
 
 	@Post(':id/accept')
@@ -27,11 +27,11 @@ export class FriendsController {
 		@Req() req: Request & { user: AuthenticatedUser },
 		@Param('id') senderId: string,
 	) {
-		return this.friendsService.acceptRequest(senderId, req.user.sub);
+		return this.friendsService.acceptRequest(senderId, req.user.id);
 	}
 
 	@Get()
 	listFriends(@Req() req: Request & { user: AuthenticatedUser }) {
-		return this.friendsService.listFriends(req.user.sub);
+		return this.friendsService.listFriends(req.user.id);
 	}
 }

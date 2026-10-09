@@ -17,6 +17,10 @@ export class AuthService {
 		private mail: MailService,
 	) {}
 
+	private generateVerificationCode(): string {
+		return crypto.randomInt(100000, 1000000).toString();
+	}
+
 	async register(dto: RegisterDto) {
 		const existing = await this.prisma.user.findUnique({
 			where: { email: dto.email },
@@ -27,7 +31,7 @@ export class AuthService {
 		}
 
 		const passwordHash = await argon2.hash(dto.password);
-		const verificationToken = crypto.randomBytes(32).toString('hex');
+		const verificationToken = this.generateVerificationCode();
 
 		const user = await this.prisma.user.create({
 			data: {
@@ -110,7 +114,7 @@ export class AuthService {
 			return { message };
 		}
 
-		const resetToken = crypto.randomBytes(32).toString('hex');
+		const resetToken = this.generateVerificationCode();
 		const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
 
 		await this.prisma.user.update({
@@ -213,5 +217,27 @@ export class AuthService {
 			throw new UnauthorizedException('User no longer exists');
 		}
 		return { id: user.id, email: user.email, role: user.role };
+	}
+
+	async createGoogleLinkState(userId: string): Promise<string> {
+		return this.jwt.signAsync(
+			{ purpose: 'google-link', userId },
+			{ expiresIn: '10m' },
+		);
+	}
+
+	async verifyGoogleLinkState(state: string): Promise<string> {
+		let payload: { purpose?: string; userId?: string };
+		try {
+			payload = await this.jwt.verifyAsync(state);
+		} catch {
+			throw new BadRequestException('Invalid or expired link request');
+		}
+
+		if (payload.purpose !== 'google-link' || !payload.userId) {
+			throw new BadRequestException('Invalid link request');
+		}
+
+		return payload.userId;
 	}
 }

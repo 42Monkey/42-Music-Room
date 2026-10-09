@@ -3,8 +3,6 @@ import { Observable } from 'rxjs';
 import { finalize } from 'rxjs/operators';
 import { PrismaService } from '../../prisma/prisma.service';
 
-const MUTATING_METHODS = ['POST', 'PUT', 'PATCH', 'DELETE'];
-
 @Injectable()
 export class ActionLogInterceptor implements NestInterceptor {
 	constructor(private prisma: PrismaService) {}
@@ -12,10 +10,6 @@ export class ActionLogInterceptor implements NestInterceptor {
 	intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
 		const req = context.switchToHttp().getRequest();
 		const method = req.method;
-
-		if (!MUTATING_METHODS.includes(method)) {
-			return next.handle();
-		}
 
 		return next.handle().pipe(
 			finalize(() => {

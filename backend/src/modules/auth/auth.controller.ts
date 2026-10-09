@@ -12,7 +12,7 @@ import { GoogleAuthGuard } from './guards/google-auth.guard'
 import type { Request,Response } from 'express';
 
 interface AuthenticatedUser {
-	sub: string;
+	id: string;
 	email: string | null;
 }
 
@@ -97,8 +97,8 @@ export class AuthController {
 	@UseGuards(JwtAuthGuard)
 	@ApiBearerAuth('access-token')
 	@ApiOperation({ summary: 'Generate Google account linking URL' })
-	googleLink(@Req() req: Request & { user: AuthenticatedUser }, @Res() res: Response) {
-		const state = Buffer.from(JSON.stringify({ userId: req.user.sub })).toString('base64');
+	async googleLink( @Req() req: Request & { user: AuthenticatedUser }, @Res() res: Response) {
+		const state = await this.authService.createGoogleLinkState(req.user.id);
 		const clientId = this.config.get<string>('GOOGLE_CLIENT_ID');
 		const callbackUrl = this.config.get<string>('GOOGLE_CALLBACK_URL');
 		const url = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${callbackUrl}&response_type=code&scope=email%20profile&state=${state}`;
@@ -109,9 +109,13 @@ export class AuthController {
 	@UseGuards(GoogleAuthGuard)
 	@ApiOperation({ summary: 'Handle Google OAuth callback' })
 	@ApiQuery({ name: 'state', required: false, description: 'OAuth state payload' })
-	async googleCallback( @Req() req: Request & { user: GoogleUser }, @Res() res: Response, @Query('state') state?: string ) {
+	async googleCallback(
+		@Req() req: Request & { user: GoogleUser },
+		@Res() res: Response,
+		@Query('state') state?: string,
+	) {
 		if (state) {
-			const { userId } = JSON.parse(Buffer.from(state, 'base64').toString());
+			const userId = await this.authService.verifyGoogleLinkState(state);
 			const result = await this.authService.googleLinking(userId, req.user);
 			return res.json(result);
 		}
