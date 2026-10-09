@@ -56,6 +56,7 @@ model User {
   location               String? // friends-only
   phoneNumber            String? // friends-only
   musicPreference        Json?   // public
+  birthDate              DateTime? // private (V.1)
 
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
@@ -126,6 +127,7 @@ model Track {
   title      String
   artist     String
   durationMs Int?
+  previewUrl String?
 
   score    Int     @default(0)
   position String?

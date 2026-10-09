@@ -40,6 +40,7 @@ export class TracksService {
 				title: metadata.title,
 				artist: metadata.artist,
 				durationMs: metadata.durationMs,
+				previewUrl: metadata.previewUrl,
 				position,
 			},
 		});
