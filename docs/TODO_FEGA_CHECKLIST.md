@@ -35,4 +35,4 @@
 - [x] **5.1** Ensure all new endpoints and DTOs have comprehensive Swagger decorators (`@ApiTags`, `@ApiOperation`, `@ApiResponse`, `@ApiBearerAuth`, `@ApiQuery`, `@ApiBody`)
 - [x] **5.2** Run TypeScript build (`npm run build`) in `backend/` to ensure zero type errors
 - [x] **5.3** Run automated tests (`npm run test`) in `backend/` to ensure zero regressions
-- [ ] **5.4** Commit and push changes to `origin/fega-backend`
+- [x] **5.4** Commit and push changes to `origin/fega-backend`
