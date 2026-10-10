@@ -7,6 +7,7 @@ import { RegisterDto } from './dto/register.dto'
 import { LoginDto} from './dto/login.dto'
 import { RequestPasswordResetDto } from './dto/request-password-reset.dto'
 import { ResetPasswordDto } from './dto/reset-password.dto'
+import { GoogleMobileAuthDto } from './dto/google-mobile.dto'
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { GoogleAuthGuard } from './guards/google-auth.guard'
 import type { Request,Response } from 'express';
@@ -121,5 +122,32 @@ export class AuthController {
 		}
 		const tokens = await this.authService.googleLogin(req.user);
 		res.json(tokens);
+	}
+
+	@Throttle({ default: { limit: 15, ttl: 60000 } })
+	@Post('google/mobile')
+	@HttpCode(HttpStatus.OK)
+	@ApiOperation({ summary: 'Login or signup with Google ID token from mobile app' })
+	@ApiBody({ type: GoogleMobileAuthDto })
+	@ApiResponse({ status: 200, description: 'Access and refresh tokens issued' })
+	async googleMobileLogin(@Body() dto: GoogleMobileAuthDto) {
+		const googleProfile = await this.authService.verifyGoogleIdToken(dto.idToken);
+		return this.authService.googleLogin(googleProfile);
+	}
+
+	@Throttle({ default: { limit: 10, ttl: 60000 } })
+	@UseGuards(JwtAuthGuard)
+	@ApiBearerAuth('access-token')
+	@Post('google/link')
+	@HttpCode(HttpStatus.OK)
+	@ApiOperation({ summary: 'Link Google account to authenticated user using Google ID token' })
+	@ApiBody({ type: GoogleMobileAuthDto })
+	@ApiResponse({ status: 200, description: 'Google account linked successfully' })
+	async googleMobileLink(
+		@Req() req: Request & { user: AuthenticatedUser },
+		@Body() dto: GoogleMobileAuthDto,
+	) {
+		const googleProfile = await this.authService.verifyGoogleIdToken(dto.idToken);
+		return this.authService.googleLinking(req.user.id, googleProfile);
 	}
 }

@@ -40,6 +40,8 @@ export class DeezerService {
 			title: data.title,
 			artist: data.artist?.name ?? 'Unknown artist',
 			durationMs: (data.duration ?? 0) * 1000,
+			previewUrl: data.preview,
+			albumCoverUrl: data.album?.cover_medium,
 		};
 	} catch (err) {
 		if (err instanceof NotFoundException)

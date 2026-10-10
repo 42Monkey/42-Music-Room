@@ -55,12 +55,42 @@ export class UsersService {
 	}
 
 	async updateProfile(userId: string, dto: UpdateProfileDto) {
+		const { birthDate, ...rest } = dto;
+		const data: Record<string, any> = { ...rest };
+		if (birthDate !== undefined) {
+			data.birthDate = birthDate ? new Date(birthDate) : null;
+		}
+
 		const updated = await this.prisma.user.update({
 			where: { id: userId },
-			data: dto,
+			data,
 		});
 
 		const { passwordHash, emailVerificationToken, passwordResetToken, ...safe } = updated;
 		return safe;
+	}
+
+	async searchUsers(query?: string, limit = 20) {
+		const trimmed = query?.trim();
+		const where = trimmed
+			? {
+					OR: [
+						{ displayName: { contains: trimmed, mode: 'insensitive' as const } },
+						{ email: { contains: trimmed, mode: 'insensitive' as const } },
+					],
+			  }
+			: {};
+
+		return this.prisma.user.findMany({
+			where,
+			take: limit,
+			select: {
+				id: true,
+				displayName: true,
+				avatarUrl: true,
+				bio: true,
+				musicPreference: true,
+			},
+		});
 	}
 }

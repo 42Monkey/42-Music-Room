@@ -3,7 +3,7 @@ import { pathsToModuleNameMapper } from 'ts-jest';
 import * as fs from 'fs';
 import * as path from 'path';
 
-const tsconfigRaw = fs.readFileSync(path.resolve(__dirname, './tsconfig.json'), 'utf8');
+const tsconfigRaw = fs.readFileSync(path.resolve(process.cwd(), 'tsconfig.json'), 'utf8');
 const tsconfig = JSON.parse(tsconfigRaw);
 const compilerOptions = tsconfig?.compilerOptions ?? {};
 

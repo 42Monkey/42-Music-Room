@@ -2,6 +2,8 @@ import { ConflictException, UnauthorizedException, BadRequestException, Injectab
 import * as argon2 from 'argon2';
 import * as crypto from 'crypto';
 import { JwtService } from "@nestjs/jwt";
+import { ConfigService } from "@nestjs/config";
+import { OAuth2Client } from 'google-auth-library';
 import { PrismaService } from "../../prisma/prisma.service";
 import { MailService } from "./mail.service";
 import { RegisterDto } from "./dto/register.dto";
@@ -11,10 +13,13 @@ import { ResetPasswordDto } from "./dto/reset-password.dto";
 
 @Injectable()
 export class AuthService {
+	private googleClient = new OAuth2Client();
+
 	constructor(
 		private prisma: PrismaService,
 		private jwt: JwtService,
 		private mail: MailService,
+		private config: ConfigService,
 	) {}
 
 	private generateVerificationCode(): string {
@@ -239,5 +244,29 @@ export class AuthService {
 		}
 
 		return payload.userId;
+	}
+
+	async verifyGoogleIdToken(idToken: string): Promise<{ googleId: string; email: string; displayName: string }> {
+		try {
+			const clientId = this.config.get<string>('GOOGLE_CLIENT_ID');
+			const ticket = await this.googleClient.verifyIdToken({
+				idToken,
+				audience: clientId ? [clientId] : undefined,
+			});
+			const payload = ticket.getPayload();
+			if (!payload || !payload.sub || !payload.email) {
+				throw new UnauthorizedException('Invalid Google token payload');
+			}
+			return {
+				googleId: payload.sub,
+				email: payload.email,
+				displayName: payload.name || payload.email.split('@')[0],
+			};
+		} catch (err) {
+			if (err instanceof UnauthorizedException) {
+				throw err;
+			}
+			throw new UnauthorizedException('Invalid or expired Google ID token');
+		}
 	}
 }
