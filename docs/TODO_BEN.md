@@ -1,50 +1,38 @@
 # TO DO FRONTEND (Ben)
 
-## Setup
-
-- choose stack (Expo / React Native + TS?)
-- `mobile/` folder
-- Makefile rule to install the app deps (IV.1)
-- backend address configurable in the app (V.5)
-- headers on every request: `x-platform`, `x-device`, `x-app-version` (V.6)
-- socket.io client: `joinRoom`/`leaveRoom`, `tracks:updated`, `playback:next`
-
-## Account (V.1, V.5)
-
-- account required on first launch
-- register / login with email + password
-- email validation (waiting for Tony)
-- forgot password (waiting for Tony)
-- google login (waiting for Fega)
-- link google account (waiting for Fega)
-
-## Profile / friends (V.1)
-
-- edit public / friends only / private info + music preferences
-- other users' profile
-- friends: search, send request, incoming requests, accept (waiting for Tony + Fega)
-
 ## Rooms (V.2.1, V.2.3)
 
-- rooms list
+- join a room (tap on a room in the list)
 - create room: VOTE / PLAYLIST, public / private, OPEN / INVITE_ONLY / RESTRICTED (place + time window)
-- invite users (waiting for Fega)
+- invite users (`GET /users?search=`, `POST /rooms/:roomId/members`)
 
 ## Track Vote (V.2.1)
 
-- live list sorted by votes
+- live list sorted by votes (`useRoomTracks`)
 - suggest a track (deezer search)
 - vote, send location in RESTRICTED rooms (`?lat=&lng=`)
 - show the error when a vote is refused
-- player, next track on `playback:next` (waiting for Fega)
+- player + next button (waiting for Tony: now playing, and Fega: fresh preview links)
 
 ## Playlist Editor (V.2.3)
 
 - real time playlist
-- add / remove / move tracks
+- add / remove / drag to reorder
 - concurrent edits: always re-render from `tracks:updated`
-- no editing if not allowed
+
+## Google (V.1, V.5)
+
+- login: `POST /auth/google/mobile { idToken }`
+- link account: `POST /auth/google/link { idToken }`
+- request the token with the web client ID, the backend only accepts `GOOGLE_CLIENT_ID`
 
 ## Tests (V.8)
 
-- app tests
+- tests for each new screen (`mobile/tests/`, `npm test` in `mobile/`)
+
+## Before the evaluation
+
+- remove the temporary test login (`src/app/(auth)/login.tsx`) once Oleg's login works
+- school Mac: `node -v` (20.19+), `npx ngrok authtoken <token>` (per machine), `node_modules` on `/sgoinfre`
+- Expo SDK of the project = the one the current Expo Go supports
+- run `make` and load the app before the evaluator sits down
