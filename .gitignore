@@ -4,3 +4,23 @@ backend/generated/
 .env
 tsconfig.build.tsbuildinfo
 docs/ENDPOINTS.md
+
+# mobile (Expo recreates mobile/.gitignore on every start)
+mobile/.gitignore
+mobile/node_modules/
+mobile/.expo/
+mobile/dist/
+mobile/expo-env.d.ts
+mobile/ios/
+mobile/android/
+mobile/coverage/
+.env*.local
+*.tsbuildinfo
+.metro-health-check*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.pem
+.DS_Store
