@@ -2,13 +2,10 @@
 
 ## Rooms (V.2.1, V.2.3)
 
-- join a room (tap on a room in the list)
-- create room: VOTE / PLAYLIST, public / private, OPEN / INVITE_ONLY / RESTRICTED (place + time window)
 - invite users (`GET /users?search=`, `POST /rooms/:roomId/members`)
 
 ## Track Vote (V.2.1)
 
-- live list sorted by votes (`useRoomTracks`)
 - suggest a track (deezer search)
 - vote, send location in RESTRICTED rooms (`?lat=&lng=`)
 - show the error when a vote is refused
@@ -16,7 +13,6 @@
 
 ## Playlist Editor (V.2.3)
 
-- real time playlist
 - add / remove / drag to reorder
 - concurrent edits: always re-render from `tracks:updated`
 
