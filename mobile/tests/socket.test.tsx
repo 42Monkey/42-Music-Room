@@ -141,6 +141,17 @@ describe('useRoomTracks', () => {
 		expect(result.current.tracks).toEqual(UPDATED);
 	});
 
+	it("knows the user's votes from the list, and keeps them through live updates", async () => {
+		fetchMock.mockResolvedValue(reply(200, [{ ...TRACKS[0], votedByMe: true }]));
+		const { result } = await renderTracks();
+
+		expect([...result.current.myVotes]).toEqual(['t1']);
+
+		await act(() => socket.serverSends('tracks:updated', UPDATED));
+
+		expect([...result.current.myVotes]).toEqual(['t1']);
+	});
+
 	it('leaves the room when the screen closes', async () => {
 		const { unmount } = await renderTracks();
 

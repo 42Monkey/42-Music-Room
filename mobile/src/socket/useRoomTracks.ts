@@ -12,6 +12,7 @@ type Options = {
 export function useRoomTracks(roomId: string, { position = null, enabled = true }: Options = {}) {
 	const { socket } = useSocket();
 	const [tracks, setTracks] = useState<Track[]>([]);
+	const [myVotes, setMyVotes] = useState<Set<string>>(() => new Set());
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<unknown>(null);
 	const lat = position?.lat;
@@ -20,7 +21,10 @@ export function useRoomTracks(roomId: string, { position = null, enabled = true 
 	const reload = useCallback(async () => {
 		if (!enabled) return;
 		try {
-			setTracks(await listTracks(roomId, lat !== undefined && lng !== undefined ? { lat, lng } : null));
+			const list = await listTracks(roomId, lat !== undefined && lng !== undefined ? { lat, lng } : null);
+			setTracks(list);
+			// Live updates go to everyone, so only this list says what the user voted for
+			setMyVotes(new Set(list.filter((track) => track.votedByMe).map((track) => track.id)));
 			setError(null);
 		} catch (err) {
 			setError(err);
@@ -55,5 +59,5 @@ export function useRoomTracks(roomId: string, { position = null, enabled = true 
 		};
 	}, [socket, roomId, reload, enabled]);
 
-	return { tracks, loading, error, reload };
+	return { tracks, myVotes, loading, error, reload };
 }

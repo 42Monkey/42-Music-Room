@@ -47,8 +47,12 @@ function describeNetwork(error: NetworkError): ErrorDescription {
 	}
 }
 
-// Room access rules, worded for people rather than developers
+// Room rules, worded for people rather than developers
 const ROOM_RULES: Record<string, ErrorDescription> = {
+	'This track has already been added to the room': {
+		title: 'Already in this room',
+		message: 'This track is already in the list. Pick another one.',
+	},
 	'This room is invite-only': {
 		title: 'Invite only',
 		message: 'Only invited people can take part in this room. Ask the owner for an invite.',

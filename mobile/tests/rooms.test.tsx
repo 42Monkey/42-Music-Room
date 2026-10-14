@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { fireEvent, screen, waitFor } from '@testing-library/react-native';
 import * as Location from 'expo-location';
 import { router, useLocalSearchParams } from 'expo-router';
+import AddTrackScreen from '@/app/(app)/rooms/add-track';
 import NewRoomScreen from '@/app/(app)/rooms/new';
 import RoomScreen from '@/app/(app)/rooms/[id]';
 import { currentPosition, LocationError } from '@/lib/location';
@@ -146,7 +147,9 @@ describe('Room screen', () => {
 		expect(screen.getByRole('header', { name: 'Rooftop Friday' })).toBeTruthy();
 		expect(screen.getByText('Track vote')).toBeTruthy();
 		expect(screen.getByText('Anyone can vote')).toBeTruthy();
-		expect(screen.getByLabelText('12 votes')).toBeTruthy();
+		expect(screen.getByRole('button', { name: 'Vote for Midnight City' }).props.accessibilityValue).toEqual({
+			text: '12 votes',
+		});
 	});
 
 	it('shows a playlist in its order', async () => {
@@ -192,6 +195,104 @@ describe('Room screen', () => {
 		await renderWithProviders(<RoomScreen />);
 
 		await waitFor(() => expect(screen.getByText('Invite only')).toBeTruthy());
+	});
+
+	it('votes for a track, then takes the vote back', async () => {
+		// Fake server that remembers the vote, like the real one
+		let votedT2 = false;
+		fetchMock.mockImplementation(async (url: string, init: { method: string }) => {
+			const path = url.replace(/^https?:\/\/[^/]+/, '').split('?')[0];
+			if (path === '/rooms/r1') return reply(200, VOTE_ROOM);
+			if (path === '/rooms/r1/tracks/t2/vote') {
+				votedT2 = init.method === 'POST';
+				return reply(201, {});
+			}
+			return reply(200, VOTE_TRACKS.map((track) => ({ ...track, votedByMe: track.id === 't2' && votedT2 })));
+		});
+		await renderWithProviders(<RoomScreen />);
+		const vote = await screen.findByRole('button', { name: 'Vote for Electric Feel' });
+
+		await fireEvent.press(vote);
+		await waitFor(() => expect(vote.props.accessibilityState).toMatchObject({ selected: true }));
+		await fireEvent.press(vote);
+		await waitFor(() => expect(vote.props.accessibilityState).toMatchObject({ selected: false }));
+
+		const voteCalls = fetchMock.mock.calls.filter(([url]) => url.includes('/vote'));
+		expect(voteCalls.map(([, init]) => init.method)).toEqual(['POST', 'DELETE']);
+	});
+
+	it('shows the votes the user already gave', async () => {
+		routeFetch(fetchMock, {
+			'/rooms/r1': reply(200, VOTE_ROOM),
+			'/rooms/r1/tracks': reply(200, [{ ...VOTE_TRACKS[0], votedByMe: true }, { ...VOTE_TRACKS[1], votedByMe: false }]),
+		});
+		await renderWithProviders(<RoomScreen />);
+
+		const voted = await screen.findByRole('button', { name: 'Vote for Midnight City' });
+
+		await waitFor(() => expect(voted.props.accessibilityState).toMatchObject({ selected: true }));
+		expect(screen.getByRole('button', { name: 'Vote for Electric Feel' }).props.accessibilityState).toMatchObject({
+			selected: false,
+		});
+	});
+
+	it('explains a refused vote', async () => {
+		routeFetch(fetchMock, {
+			'/rooms/r1': reply(200, VOTE_ROOM),
+			'/rooms/r1/tracks': reply(200, VOTE_TRACKS),
+			'/rooms/r1/tracks/t1/vote': reply(403, { statusCode: 403, message: 'This room is outside its active time window' }),
+		});
+		await renderWithProviders(<RoomScreen />);
+
+		await fireEvent.press(await screen.findByRole('button', { name: 'Vote for Midnight City' }));
+
+		await waitFor(() => expect(screen.getByText('Closed right now')).toBeTruthy());
+		expect(screen.getByRole('button', { name: 'Vote for Midnight City' }).props.accessibilityState).toMatchObject({
+			selected: false,
+		});
+	});
+
+	it('keeps the vote when the server already counted it', async () => {
+		routeFetch(fetchMock, {
+			'/rooms/r1': reply(200, VOTE_ROOM),
+			'/rooms/r1/tracks': reply(200, VOTE_TRACKS),
+			'/rooms/r1/tracks/t1/vote': reply(409, { statusCode: 409, message: 'You have already voted for this track' }),
+		});
+		await renderWithProviders(<RoomScreen />);
+		const vote = await screen.findByRole('button', { name: 'Vote for Midnight City' });
+
+		await fireEvent.press(vote);
+
+		await waitFor(() => expect(vote.props.accessibilityState).toMatchObject({ selected: true }));
+		expect(screen.queryByText('Already done')).toBeNull();
+	});
+
+	it('checks where the phone is again before a vote in a place-and-time room', async () => {
+		routeFetch(fetchMock, {
+			'/rooms/r1': reply(200, { ...VOTE_ROOM, accessPolicy: 'RESTRICTED' }),
+			'/rooms/r1/tracks': reply(200, VOTE_TRACKS),
+			'/rooms/r1/tracks/t1/vote': reply(201, {}),
+		});
+		await renderWithProviders(<RoomScreen />);
+		const vote = await screen.findByRole('button', { name: 'Vote for Midnight City' });
+		(Location.getCurrentPositionAsync as jest.Mock).mockClear();
+
+		await fireEvent.press(vote);
+
+		await waitFor(() => expect(fetchMock.mock.calls.some(([url]) => url.includes('/vote'))).toBe(true));
+		const voteCall = fetchMock.mock.calls.find(([url]) => url.includes('/vote'));
+		expect(voteCall[0]).toContain('/vote?lat=13.7563&lng=100.5018');
+		expect(Location.getCurrentPositionAsync).toHaveBeenCalled();
+	});
+
+	it('opens the track search for this room', async () => {
+		(router.push as jest.Mock).mockReset();
+		routeFetch(fetchMock, { '/rooms/r1': reply(200, VOTE_ROOM), '/rooms/r1/tracks': reply(200, []) });
+		await renderWithProviders(<RoomScreen />);
+
+		await fireEvent.press(await screen.findByRole('button', { name: 'Suggest a track' }));
+
+		expect(router.push).toHaveBeenCalledWith({ pathname: '/rooms/add-track', params: { roomId: 'r1', kind: 'VOTE' } });
 	});
 
 	it('explains a room that no longer exists', async () => {
@@ -292,5 +393,101 @@ describe('New room screen', () => {
 
 		await waitFor(() => expect(screen.getByText('Name must be shorter than or equal to 100 characters.')).toBeTruthy());
 		expect(router.push).not.toHaveBeenCalled();
+	});
+});
+
+describe('Add track screen', () => {
+	let fetchMock: jest.Mock;
+	const RESULTS = [
+		{ providerId: '3135556', title: 'Harder, Better, Faster, Stronger', artist: 'Daft Punk', durationMs: 224000, previewUrl: null, albumCoverUrl: null },
+		{ providerId: '3135553', title: 'One More Time', artist: 'Daft Punk', durationMs: 320000, previewUrl: null, albumCoverUrl: null },
+	];
+
+	beforeEach(async () => {
+		await AsyncStorage.clear();
+		await tokenStorage.clear();
+		process.env.EXPO_PUBLIC_API_URL = 'http://192.168.1.10:8080';
+		fetchMock = mockFetch();
+		(useLocalSearchParams as jest.Mock).mockReturnValue({ roomId: 'r1', kind: 'VOTE' });
+		(router.back as jest.Mock).mockReset();
+	});
+
+	async function search(text: string) {
+		await renderWithProviders(<AddTrackScreen />);
+		await fireEvent.changeText(await screen.findByLabelText('Search Deezer'), text);
+	}
+
+	it('finds tracks once the user stops typing', async () => {
+		routeFetch(fetchMock, { '/rooms/r1/tracks/search': reply(200, RESULTS) });
+
+		await search('daft punk');
+
+		await waitFor(() => expect(screen.getByText('One More Time')).toBeTruthy());
+		expect(screen.getByText('3:44')).toBeTruthy();
+		expect(fetchMock.mock.calls[0][0]).toContain('/rooms/r1/tracks/search?query=daft%20punk');
+	});
+
+	it('suggests the chosen track, then goes back to the room', async () => {
+		routeFetch(fetchMock, {
+			'/rooms/r1/tracks/search': reply(200, RESULTS),
+			'/rooms/r1/tracks': reply(201, { id: 't9' }),
+		});
+		await search('daft punk');
+
+		await fireEvent.press(await screen.findByRole('button', { name: 'Suggest One More Time by Daft Punk' }));
+
+		await waitFor(() => expect(router.back).toHaveBeenCalled());
+		const addCall = fetchMock.mock.calls.find(([, init]) => init.method === 'POST');
+		expect(JSON.parse(addCall[1].body)).toEqual({ deezerTrackId: '3135553' });
+		expect(screen.getByText('Track suggested')).toBeTruthy();
+	});
+
+	it('says when nothing matches', async () => {
+		routeFetch(fetchMock, { '/rooms/r1/tracks/search': reply(200, []) });
+
+		await search('zzqx');
+
+		await waitFor(() => expect(screen.getByText('No tracks found for "zzqx"')).toBeTruthy());
+	});
+
+	it('explains a track that is already in the room', async () => {
+		routeFetch(fetchMock, {
+			'/rooms/r1/tracks/search': reply(200, RESULTS),
+			'/rooms/r1/tracks': reply(409, { statusCode: 409, message: 'This track has already been added to the room' }),
+		});
+		await search('daft punk');
+
+		await fireEvent.press(await screen.findByRole('button', { name: 'Suggest One More Time by Daft Punk' }));
+
+		await waitFor(() => expect(screen.getByText('Already in this room')).toBeTruthy());
+		expect(router.back).not.toHaveBeenCalled();
+	});
+
+	it('says when Deezer is down', async () => {
+		routeFetch(fetchMock, { '/rooms/r1/tracks/search': reply(502, { statusCode: 502, message: 'Could not reach Deezer' }) });
+
+		await search('daft punk');
+
+		await waitFor(() => expect(screen.getByText('Music service unavailable')).toBeTruthy());
+	});
+
+	it('sends the position of a place-and-time room', async () => {
+		(useLocalSearchParams as jest.Mock).mockReturnValue({ roomId: 'r1', kind: 'VOTE', lat: '13.75', lng: '100.5' });
+		routeFetch(fetchMock, { '/rooms/r1/tracks/search': reply(200, RESULTS) });
+
+		await search('daft punk');
+
+		await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+		expect(fetchMock.mock.calls[0][0]).toContain('&lat=13.75&lng=100.5');
+	});
+
+	it('adds to a playlist with playlist words', async () => {
+		(useLocalSearchParams as jest.Mock).mockReturnValue({ roomId: 'r1', kind: 'PLAYLIST' });
+		routeFetch(fetchMock, { '/rooms/r1/tracks/search': reply(200, RESULTS) });
+
+		await search('daft punk');
+
+		expect(screen.getByRole('header', { name: 'Add a track' })).toBeTruthy();
+		expect(await screen.findByRole('button', { name: 'Add One More Time by Daft Punk' })).toBeTruthy();
 	});
 });

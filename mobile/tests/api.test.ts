@@ -1,7 +1,7 @@
 import { api, configureApi } from '@/api/client';
 import { ApiError, NetworkError } from '@/api/errors';
 import { createRoom, getRoom } from '@/api/rooms';
-import { listTracks } from '@/api/tracks';
+import { addTrack, listTracks, searchTracks, unvoteTrack, voteTrack } from '@/api/tracks';
 import { failure, mockFetch, reply } from './helpers';
 
 const onUnauthorized = jest.fn();
@@ -149,6 +149,38 @@ describe('api client', () => {
 		await listTracks('r1', { lat: 13.75, lng: 100.5 });
 
 		expect(fetchMock.mock.calls[0][0]).toBe('http://10.0.0.5:8080/rooms/r1/tracks?lat=13.75&lng=100.5');
+	});
+
+	it('searches Deezer through the room, with the position when given', async () => {
+		fetchMock.mockResolvedValue(reply(200, []));
+
+		await searchTracks('r1', 'daft punk & co', { lat: 13.75, lng: 100.5 });
+
+		expect(fetchMock.mock.calls[0][0]).toBe(
+			'http://10.0.0.5:8080/rooms/r1/tracks/search?query=daft%20punk%20%26%20co&lat=13.75&lng=100.5',
+		);
+	});
+
+	it('adds a track by its Deezer id', async () => {
+		fetchMock.mockResolvedValue(reply(201, { id: 't9' }));
+
+		await addTrack('r1', '3135556');
+
+		expect(fetchMock.mock.calls[0][0]).toBe('http://10.0.0.5:8080/rooms/r1/tracks');
+		expect(fetchMock.mock.calls[0][1].method).toBe('POST');
+		expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ deezerTrackId: '3135556' });
+	});
+
+	it('votes and takes a vote back', async () => {
+		fetchMock.mockResolvedValue(reply(201, {}));
+
+		await voteTrack('r1', 't1', { lat: 13.75, lng: 100.5 });
+		await unvoteTrack('r1', 't1');
+
+		expect(fetchMock.mock.calls[0][0]).toBe('http://10.0.0.5:8080/rooms/r1/tracks/t1/vote?lat=13.75&lng=100.5');
+		expect(fetchMock.mock.calls[0][1].method).toBe('POST');
+		expect(fetchMock.mock.calls[1][0]).toBe('http://10.0.0.5:8080/rooms/r1/tracks/t1/vote');
+		expect(fetchMock.mock.calls[1][1].method).toBe('DELETE');
 	});
 
 	it('refuses to call without a server address', async () => {

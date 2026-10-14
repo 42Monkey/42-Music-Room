@@ -1,13 +1,26 @@
-import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import Animated, { FadeInDown, LinearTransition } from 'react-native-reanimated';
+import Animated, {
+	Easing,
+	FadeInDown,
+	interpolateColor,
+	LinearTransition,
+	useAnimatedStyle,
+	useReducedMotion,
+	useSharedValue,
+	withTiming,
+} from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
+import { ApiError } from '@/api/errors';
 import { getRoom } from '@/api/rooms';
+import { unvoteTrack, voteTrack } from '@/api/tracks';
+import { Button } from '@/components/Button';
 import { OnAirBadge } from '@/components/OnAirBadge';
 import { Screen } from '@/components/Screen';
 import { Tag } from '@/components/Tag';
 import { ErrorState } from '@/feedback/ErrorState';
+import { useFeedback } from '@/feedback/FeedbackProvider';
 import { currentPosition } from '@/lib/location';
 import { kindLabel, ruleLabel } from '@/rooms/roomText';
 import { useSession } from '@/session/SessionProvider';
@@ -16,12 +29,26 @@ import { useSocket } from '@/socket/SocketProvider';
 import { colors, radius, space, type } from '@/theme';
 import type { Position, Room, Track } from '@/types/api';
 
+const EASE_OUT = Easing.bezier(0.23, 1, 0.32, 1);
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
+// Server answers meaning "it was already that way"
+const ALREADY = ['You have already voted for this track', 'You have not voted for this track'];
+
+function toggled(ids: Set<string>, id: string, on: boolean): Set<string> {
+	const next = new Set(ids);
+	if (on) next.add(id);
+	else next.delete(id);
+	return next;
+}
+
 // One room: its rules and its live track list
 export default function RoomScreen() {
 	const { id } = useLocalSearchParams<{ id: string }>();
 	const roomId = String(id);
 	const { user } = useSession();
 	const { connected } = useSocket();
+	const { showError } = useFeedback();
 	const [room, setRoom] = useState<Room | null>(null);
 	const [roomError, setRoomError] = useState<unknown>(null);
 	const [position, setPosition] = useState<Position | null>(null);
@@ -57,8 +84,48 @@ export default function RoomScreen() {
 	}, [needsPosition, locate]);
 
 	const ready = !!room && (!needsPosition || !!position);
-	const { tracks, loading, error, reload } = useRoomTracks(roomId, { position, enabled: ready });
+	const { tracks, myVotes, loading, error, reload } = useRoomTracks(roomId, { position, enabled: ready });
 	const back = { label: 'Rooms', onPress: () => router.back() };
+
+	// User's votes: from the server on each load, then changed at once on tap
+	const [voted, setVoted] = useState<Set<string>>(() => new Set());
+	const pending = useRef(new Set<string>());
+
+	useEffect(() => {
+		setVoted(myVotes);
+	}, [myVotes]);
+
+	// Vote or take it back; shown at once, the counts come from the server
+	const toggleVote = async (track: Track) => {
+		if (pending.current.has(track.id)) return;
+		pending.current.add(track.id);
+		const wasVoted = voted.has(track.id);
+		setVoted((current) => toggled(current, track.id, !wasVoted));
+		try {
+			// Place-and-time rooms: where the phone is now, not when the room opened
+			const where = needsPosition ? await currentPosition() : null;
+			if (wasVoted) await unvoteTrack(roomId, track.id, where);
+			else await voteTrack(roomId, track.id, where);
+			if (!connected) reload();
+		} catch (err) {
+			if (!(err instanceof ApiError && ALREADY.includes(String(err.serverMessage)))) {
+				setVoted((current) => toggled(current, track.id, wasVoted));
+				showError(err);
+			}
+		} finally {
+			pending.current.delete(track.id);
+		}
+	};
+
+	// Search sheet, with the position for place-and-time rooms
+	const openSearch = (kind: Room['kind']) => {
+		const params: Record<string, string> = { roomId, kind };
+		if (position) {
+			params.lat = String(position.lat);
+			params.lng = String(position.lng);
+		}
+		router.push({ pathname: '/rooms/add-track', params });
+	};
 
 	if (roomError) {
 		return (
@@ -86,6 +153,14 @@ export default function RoomScreen() {
 				{room.visibility === 'PRIVATE' && <Tag label="Private" icon="lock-closed" />}
 			</View>
 			{room.description ? <Text style={styles.description}>{room.description}</Text> : null}
+			{ready && (
+				<Button
+					label={isVote ? 'Suggest a track' : 'Add a track'}
+					icon="add"
+					onPress={() => openSearch(room.kind)}
+					style={styles.addButton}
+				/>
+			)}
 
 			<View style={styles.sectionHeader}>
 				<Text style={styles.sectionTitle} accessibilityRole="header">
@@ -104,13 +179,21 @@ export default function RoomScreen() {
 				<View style={styles.empty}>
 					<Text style={styles.emptyTitle}>No tracks yet</Text>
 					<Text style={styles.emptyText}>
-						{isVote ? 'Suggested tracks will show up here, sorted by votes.' : 'Tracks added to this playlist will show up here.'}
+						{isVote ? 'Suggest the first one. The most voted track plays first.' : 'Add the first track to this playlist.'}
 					</Text>
 				</View>
 			) : (
 				<View style={styles.list}>
 					{tracks.map((track, index) => (
-						<TrackRow key={track.id} track={track} index={index} isVote={isVote} last={index === tracks.length - 1} />
+						<TrackRow
+							key={track.id}
+							track={track}
+							index={index}
+							isVote={isVote}
+							voted={voted.has(track.id)}
+							onVote={() => toggleVote(track)}
+							last={index === tracks.length - 1}
+						/>
 					))}
 				</View>
 			)}
@@ -118,10 +201,10 @@ export default function RoomScreen() {
 	);
 }
 
-type RowProps = { track: Track; index: number; isVote: boolean; last: boolean };
+type RowProps = { track: Track; index: number; isVote: boolean; voted: boolean; onVote: () => void; last: boolean };
 
 // One track: fades in on load, glides when the order changes
-function TrackRow({ track, index, isVote, last }: RowProps) {
+function TrackRow({ track, index, isVote, voted, onVote, last }: RowProps) {
 	return (
 		<Animated.View
 			entering={FadeInDown.duration(250).delay(Math.min(index, 8) * 40)}
@@ -137,13 +220,49 @@ function TrackRow({ track, index, isVote, last }: RowProps) {
 					{track.artist}
 				</Text>
 			</View>
-			{isVote && (
-				<View accessible accessibilityLabel={`${track.score} ${track.score === 1 ? 'vote' : 'votes'}`} style={styles.votes}>
-					<Ionicons name="arrow-up" size={14} color={colors.ink} />
-					<Text style={styles.voteCount}>{track.score}</Text>
-				</View>
-			)}
+			{isVote && <VoteButton title={track.title} score={track.score} voted={voted} onPress={onVote} />}
 		</Animated.View>
+	);
+}
+
+type VoteProps = { title: string; score: number; voted: boolean; onPress: () => void };
+
+// Vote toggle: outlined until you vote, raspberry once you have
+function VoteButton({ title, score, voted, onPress }: VoteProps) {
+	const reduceMotion = useReducedMotion();
+	const press = useSharedValue(1);
+	const on = useSharedValue(voted ? 1 : 0);
+
+	useEffect(() => {
+		on.value = reduceMotion ? (voted ? 1 : 0) : withTiming(voted ? 1 : 0, { duration: 160, easing: EASE_OUT });
+	}, [voted, reduceMotion, on]);
+
+	const look = useAnimatedStyle(() => ({
+		transform: [{ scale: press.value }],
+		backgroundColor: interpolateColor(on.value, [0, 1], [colors.surface, colors.accent]),
+		borderColor: interpolateColor(on.value, [0, 1], [colors.line, colors.accent]),
+	}));
+	const color = voted ? '#FFFFFF' : colors.ink;
+
+	return (
+		<AnimatedPressable
+			onPress={onPress}
+			onPressIn={() => {
+				press.value = withTiming(0.94, { duration: 100, easing: EASE_OUT });
+			}}
+			onPressOut={() => {
+				press.value = withTiming(1, { duration: 160, easing: EASE_OUT });
+			}}
+			hitSlop={8}
+			accessibilityRole="button"
+			accessibilityLabel={`Vote for ${title}`}
+			accessibilityValue={{ text: `${score} ${score === 1 ? 'vote' : 'votes'}` }}
+			accessibilityState={{ selected: voted }}
+			style={[styles.votes, look]}
+		>
+			<Ionicons name="arrow-up" size={14} color={color} />
+			<Text style={[styles.voteCount, { color }]}>{score}</Text>
+		</AnimatedPressable>
 	);
 }
 
@@ -160,6 +279,9 @@ const styles = StyleSheet.create({
 		...type.body,
 		color: colors.muted,
 		marginTop: space.md,
+	},
+	addButton: {
+		marginTop: space.lg,
 	},
 	sectionHeader: {
 		flexDirection: 'row',

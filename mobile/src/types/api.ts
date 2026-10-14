@@ -75,4 +75,16 @@ export type Track = {
 	position: string | null;
 	addedAt: string;
 	playedAt: string | null;
+	// Only in the list loaded by this user, not in live updates
+	votedByMe?: boolean;
+};
+
+// One Deezer search result (not in a room yet)
+export type TrackResult = {
+	providerId: string;
+	title: string;
+	artist: string;
+	durationMs: number;
+	previewUrl: string | null;
+	albumCoverUrl: string | null;
 };
