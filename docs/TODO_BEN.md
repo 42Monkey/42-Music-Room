@@ -6,14 +6,11 @@
 
 ## Track Vote (V.2.1)
 
-- suggest a track (deezer search)
-- vote, send location in RESTRICTED rooms (`?lat=&lng=`)
-- show the error when a vote is refused
 - player + next button (waiting for Tony: now playing, and Fega: fresh preview links)
 
 ## Playlist Editor (V.2.3)
 
-- add / remove / drag to reorder
+- remove / drag to reorder (add is done, same search screen as Track Vote)
 - concurrent edits: always re-render from `tracks:updated`
 
 ## Google (V.1, V.5)
