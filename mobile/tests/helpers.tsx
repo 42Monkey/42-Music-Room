@@ -4,6 +4,9 @@ import { FeedbackProvider } from '@/feedback/FeedbackProvider';
 import { SessionProvider } from '@/session/SessionProvider';
 import { SettingsProvider } from '@/settings/SettingsProvider';
 
+// Default backend address used by the tests
+export const SERVER = 'http://192.168.1.10:8080';
+
 // Minimal stand-in for a fetch Response
 export function reply(status: number, body?: unknown) {
 	return {

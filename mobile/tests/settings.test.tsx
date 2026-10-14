@@ -39,6 +39,18 @@ describe('normalizeServerUrl', () => {
 	it('rejects other protocols', () => {
 		expect(normalizeServerUrl('ftp://192.168.1.10').ok).toBe(false);
 	});
+
+	it('refuses plain http for a public address', () => {
+		expect(normalizeServerUrl('http://abc.trycloudflare.com')).toEqual({
+			ok: false,
+			error: 'Use https:// for addresses outside your local network, so your login is not sent in clear text.',
+		});
+	});
+
+	it('allows plain http on the local network', () => {
+		expect(normalizeServerUrl('http://172.20.0.4:8080').ok).toBe(true);
+		expect(normalizeServerUrl('http://10.0.2.2:8080').ok).toBe(true);
+	});
 });
 
 async function renderSettings() {

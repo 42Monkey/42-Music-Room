@@ -6,7 +6,7 @@ import SettingsScreen from '@/app/settings';
 import { configureApi } from '@/api/client';
 import { FeedbackProvider } from '@/feedback/FeedbackProvider';
 import { tokenStorage } from '@/session/tokenStorage';
-import { mockFetch, renderWithProviders, reply } from './helpers';
+import { mockFetch, renderWithProviders, reply, SERVER } from './helpers';
 
 let fetchMock: jest.Mock;
 
@@ -80,7 +80,7 @@ describe('Settings screen', () => {
 	});
 
 	it('logs out when logged in', async () => {
-		await tokenStorage.set('saved-token');
+		await tokenStorage.set('saved-token', SERVER);
 		fetchMock.mockResolvedValue(reply(200, { id: 'u1', displayName: 'Test User 1' }));
 		await renderSettings();
 		await waitFor(() => expect(screen.getByText('Logged in as Test User 1')).toBeTruthy());

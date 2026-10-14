@@ -11,7 +11,11 @@ import { colors, space, type } from '@/theme';
 import type { Tokens } from '@/types/api';
 
 // TEMPORARY: replaced by Oleg's login screen, must not reach the evaluation
-const TEST_ACCOUNT = { email: 'user1@test.com', password: 'password123' };
+// Seeded test account, read from mobile/.env (never written in the code)
+const TEST_ACCOUNT = {
+	email: process.env.EXPO_PUBLIC_TEST_EMAIL ?? '',
+	password: process.env.EXPO_PUBLIC_TEST_PASSWORD ?? '',
+};
 
 export default function LoginScreen() {
 	const { signIn } = useSession();
@@ -20,6 +24,14 @@ export default function LoginScreen() {
 
 	// Logs in as the seeded test user
 	const testLogin = async () => {
+		if (!TEST_ACCOUNT.email || !TEST_ACCOUNT.password) {
+			setError(
+				new Error(
+					'add EXPO_PUBLIC_TEST_EMAIL and EXPO_PUBLIC_TEST_PASSWORD to mobile/.env (see mobile/.env.example), then restart make',
+				),
+			);
+			return;
+		}
 		setLoading(true);
 		setError(null);
 		try {

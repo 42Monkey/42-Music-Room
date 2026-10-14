@@ -11,7 +11,7 @@ import { SettingsProvider } from '@/settings/SettingsProvider';
 import { ConnectionWatcher } from '@/socket/ConnectionWatcher';
 import { SocketContext, SocketProvider, useSocket } from '@/socket/SocketProvider';
 import { useRoomTracks } from '@/socket/useRoomTracks';
-import { FakeSocket, mockFetch, reply } from './helpers';
+import { FakeSocket, mockFetch, reply, SERVER } from './helpers';
 
 jest.mock('socket.io-client', () => ({ io: jest.fn() }));
 
@@ -57,7 +57,7 @@ describe('SocketProvider', () => {
 	});
 
 	it('connects to the server with the session token once logged in', async () => {
-		await tokenStorage.set('saved-token');
+		await tokenStorage.set('saved-token', SERVER);
 
 		await renderSocket();
 
@@ -70,7 +70,7 @@ describe('SocketProvider', () => {
 	});
 
 	it('reports when the connection is up or down', async () => {
-		await tokenStorage.set('saved-token');
+		await tokenStorage.set('saved-token', SERVER);
 		const { result } = await renderSocket();
 		await waitFor(() => expect(ioMock).toHaveBeenCalled());
 
@@ -82,7 +82,7 @@ describe('SocketProvider', () => {
 	});
 
 	it('closes the connection on sign out', async () => {
-		await tokenStorage.set('saved-token');
+		await tokenStorage.set('saved-token', SERVER);
 		const { result } = await renderSocket();
 		await waitFor(() => expect(ioMock).toHaveBeenCalled());
 

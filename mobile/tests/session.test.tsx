@@ -7,7 +7,7 @@ import { SessionProvider, useSession } from '@/session/SessionProvider';
 import { SessionWatcher } from '@/session/SessionWatcher';
 import { tokenStorage } from '@/session/tokenStorage';
 import { SettingsProvider } from '@/settings/SettingsProvider';
-import { mockFetch, renderWithProviders, reply } from './helpers';
+import { mockFetch, renderWithProviders, reply, SERVER } from './helpers';
 
 const ME = { id: 'u1', displayName: 'Test User 1', email: 'user1@test.com', emailVerified: true };
 let fetchMock: jest.Mock;
@@ -42,7 +42,7 @@ describe('SessionProvider', () => {
 	});
 
 	it('restores the session from a saved token', async () => {
-		await tokenStorage.set('saved-token');
+		await tokenStorage.set('saved-token', SERVER);
 		fetchMock.mockResolvedValue(reply(200, ME));
 
 		const { result } = await renderSession();
@@ -52,8 +52,18 @@ describe('SessionProvider', () => {
 		expect(fetchMock.mock.calls[0][1].headers.Authorization).toBe('Bearer saved-token');
 	});
 
+	it('forgets a login saved for another server, without sending it', async () => {
+		await tokenStorage.set('other-server-token', 'https://old-link.trycloudflare.com');
+
+		const { result } = await renderSession();
+
+		expect(result.current.status).toBe('signedOut');
+		expect(fetchMock).not.toHaveBeenCalled();
+		expect(await tokenStorage.get()).toBeNull();
+	});
+
 	it('forgets a token the server refuses', async () => {
-		await tokenStorage.set('old-token');
+		await tokenStorage.set('old-token', SERVER);
 		fetchMock.mockResolvedValue(reply(401, { statusCode: 401, message: 'Unauthorized' }));
 
 		const { result } = await renderSession();
@@ -63,14 +73,14 @@ describe('SessionProvider', () => {
 	});
 
 	it('keeps the token and reports the error when the server is unreachable', async () => {
-		await tokenStorage.set('saved-token');
+		await tokenStorage.set('saved-token', SERVER);
 		fetchMock.mockRejectedValue(new TypeError('Network request failed'));
 
 		const { result } = await renderSession();
 
 		expect(result.current.status).toBe('signedOut');
 		expect(result.current.restoreError).toBeInstanceOf(NetworkError);
-		expect(await tokenStorage.get()).toBe('saved-token');
+		expect(await tokenStorage.get()).toEqual({ token: 'saved-token', serverUrl: SERVER });
 	});
 
 	it('signs in with the tokens from login', async () => {
@@ -81,11 +91,11 @@ describe('SessionProvider', () => {
 
 		expect(result.current.status).toBe('signedIn');
 		expect(result.current.user?.id).toBe('u1');
-		expect(await tokenStorage.get()).toBe('new-token');
+		expect(await tokenStorage.get()).toEqual({ token: 'new-token', serverUrl: SERVER });
 	});
 
 	it('signs out and forgets the token', async () => {
-		await tokenStorage.set('saved-token');
+		await tokenStorage.set('saved-token', SERVER);
 		fetchMock.mockResolvedValue(reply(200, ME));
 		const { result } = await renderSession();
 
@@ -97,7 +107,7 @@ describe('SessionProvider', () => {
 	});
 
 	it('ends the session when the server refuses the token later (watcher shows why)', async () => {
-		await tokenStorage.set('saved-token');
+		await tokenStorage.set('saved-token', SERVER);
 		fetchMock.mockResolvedValue(reply(200, ME));
 		await renderWithProviders(<SessionWatcher />);
 		await waitFor(() => expect(fetchMock).toHaveBeenCalled());
@@ -112,7 +122,7 @@ describe('SessionProvider', () => {
 	});
 
 	it('tells the user when the server is unreachable at startup', async () => {
-		await tokenStorage.set('saved-token');
+		await tokenStorage.set('saved-token', SERVER);
 		fetchMock.mockRejectedValue(new TypeError('Network request failed'));
 
 		await renderWithProviders(<SessionWatcher />);
@@ -121,7 +131,7 @@ describe('SessionProvider', () => {
 	});
 
 	it('ends the session when the server refuses the token later', async () => {
-		await tokenStorage.set('saved-token');
+		await tokenStorage.set('saved-token', SERVER);
 		fetchMock.mockResolvedValue(reply(200, ME));
 		const { result } = await renderSession();
 		fetchMock.mockResolvedValue(reply(401, { statusCode: 401, message: 'Unauthorized' }));

@@ -3,6 +3,7 @@
     "name": "Music Room",
     "slug": "music-room",
     "scheme": "musicroom",
+    "platforms": ["ios", "android"],
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",

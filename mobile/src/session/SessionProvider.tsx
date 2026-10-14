@@ -49,10 +49,15 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 			setStatus('signedOut');
 			return;
 		}
-		configureApi({ token: saved });
+		// A token only goes back to the server that issued it
+		if (saved.serverUrl !== serverUrl) {
+			await endSession(false);
+			return;
+		}
+		configureApi({ token: saved.token });
 		try {
 			setUser(await api.get<User>('/users/me'));
-			setToken(saved);
+			setToken(saved.token);
 			setStatus('signedIn');
 		} catch (error) {
 			configureApi({ token: null });
@@ -61,7 +66,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 			else setRestoreError(error);
 			setStatus('signedOut');
 		}
-	}, []);
+	}, [serverUrl, endSession]);
 
 	// Again when the server address changes
 	useEffect(() => {
@@ -87,13 +92,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 			configureApi({ token: null });
 			throw error;
 		}
-		await tokenStorage.set(tokens.accessToken);
+		await tokenStorage.set(tokens.accessToken, serverUrl);
 		setUser(me);
 		setToken(tokens.accessToken);
 		setExpired(false);
 		setRestoreError(null);
 		setStatus('signedIn');
-	}, []);
+	}, [serverUrl]);
 
 	const signOut = useCallback(() => endSession(false), [endSession]);
 	const dismissExpired = useCallback(() => setExpired(false), []);
