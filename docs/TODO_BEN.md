@@ -1,8 +1,8 @@
 # TO DO FRONTEND (Ben)
 
-## Rooms (V.2.1, V.2.3)
+## Session
 
-- invite users (`GET /users?search=`, `POST /rooms/:roomId/members`)
+- renew the login with `/auth/refresh` once Tony adds it (logins only last 15m for now)
 
 ## Track Vote (V.2.1)
 
