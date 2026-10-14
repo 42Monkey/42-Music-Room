@@ -1,4 +1,4 @@
-import type { ReactElement, ReactNode } from 'react';
+import { useContext, type ReactElement, type ReactNode } from 'react';
 import {
 	KeyboardAvoidingView,
 	Platform,
@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, space, type } from '@/theme';
+import { TabBarSpaceContext } from './FloatingTabBar';
 
 type Props = {
 	title?: string;
@@ -24,6 +25,8 @@ type Props = {
 
 // Page frame: safe area, big title, scrolling body
 export function Screen({ title, right, onClose, scroll = true, refreshControl, children }: Props) {
+	// Extra room at the bottom when the floating tab bar is on screen
+	const bottomSpace = { paddingBottom: space.huge + useContext(TabBarSpaceContext) };
 	const header = (title || right || onClose) && (
 		<View style={styles.header}>
 			{title ? (
@@ -55,7 +58,8 @@ export function Screen({ title, right, onClose, scroll = true, refreshControl, c
 			<KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
 				{scroll ? (
 					<ScrollView
-						contentContainerStyle={styles.body}
+						testID="screen-scroll"
+						contentContainerStyle={[styles.body, bottomSpace]}
 						keyboardShouldPersistTaps="handled"
 						refreshControl={refreshControl}
 					>
@@ -63,7 +67,7 @@ export function Screen({ title, right, onClose, scroll = true, refreshControl, c
 						{children}
 					</ScrollView>
 				) : (
-					<View style={[styles.body, styles.fill]}>
+					<View style={[styles.body, bottomSpace, styles.fill]}>
 						{header}
 						{children}
 					</View>
