@@ -124,26 +124,29 @@ export class TracksService {
 		await this.broadcastTracks(roomId);
 	}
 
-	async getQueue(roomId: string) {
+	async getQueue(roomId: string, userId?: string) {
 		const room = await this.prisma.room.findUnique({ where: { id: roomId } });
 		if (!room) {
 			throw new NotFoundException('Room not found');
 		}
 
-		if (room.kind === "PLAYLIST") {
-			return this.prisma.track.findMany({
-				where: { roomId },
-				orderBy: { position: 'asc'},
-			});
+		const tracks = await this.prisma.track.findMany({
+			where: { roomId },
+			orderBy: room.kind === 'PLAYLIST'
+				? { position: 'asc' }
+				: [{ score: 'desc' }, { addedAt: 'asc' }],
+		});
+		if (!userId) {
+			return tracks;
 		}
 
-		return this.prisma.track.findMany({
-			where: { roomId },
-			orderBy: [
-				{ score: 'desc' },
-				{ addedAt: 'asc' },
-			],
+		// Tells the caller which tracks they already voted for
+		const votes = await this.prisma.vote.findMany({
+			where: { userId, track: { roomId } },
+			select: { trackId: true },
 		});
+		const voted = new Set(votes.map((vote) => vote.trackId));
+		return tracks.map((track) => ({ ...track, votedByMe: voted.has(track.id) }));
 	}
 
 	async reorderTrack(roomId: string, trackId: string, afterTrackId: string | null, retries = 3) {

@@ -74,9 +74,12 @@ export class TracksController {
 	@Get()
 	@ApiOperation({ summary: 'Get the current room queue' })
 	@ApiParam({ name: 'roomId', description: 'Room id' })
-	@ApiResponse({ status: 200, description: 'Queue returned' })
-	getQueue(@Param('roomId') roomId: string) {
-		return this.tracksService.getQueue(roomId);
+	@ApiResponse({ status: 200, description: 'Queue returned, votedByMe says if the caller voted for each track' })
+	getQueue(
+		@Param('roomId') roomId: string,
+		@Req() req: Request & { user: AuthenticatedUser },
+	) {
+		return this.tracksService.getQueue(roomId, req.user.id);
 	}
 
 	@Patch(':trackId/position')
