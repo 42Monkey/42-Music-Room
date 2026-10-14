@@ -18,8 +18,50 @@ jest.mock('expo-secure-store', () => {
 });
 
 // Navigation calls are recorded, not performed
-jest.mock('expo-router', () => ({
-	router: { push: jest.fn(), back: jest.fn(), replace: jest.fn(), canGoBack: jest.fn(() => true) },
+jest.mock('expo-router', () => {
+	const { useEffect } = require('react');
+	return {
+		router: {
+			push: jest.fn(),
+			back: jest.fn(),
+			replace: jest.fn(),
+			dismiss: jest.fn(),
+			canGoBack: jest.fn(() => true),
+		},
+		useLocalSearchParams: jest.fn(() => ({})),
+		useFocusEffect: (effect: () => void) => useEffect(effect, [effect]),
+	};
+});
+
+// Phone position, granted by default
+jest.mock('expo-location', () => ({
+	Accuracy: { Balanced: 3 },
+	requestForegroundPermissionsAsync: jest.fn(async () => ({ status: 'granted' })),
+	getCurrentPositionAsync: jest.fn(async () => ({ coords: { latitude: 13.7563, longitude: 100.5018 } })),
+}));
+
+// Native time picker replaced by a button that picks 21:30
+jest.mock('@react-native-community/datetimepicker', () => {
+	const { createElement } = require('react');
+	const { Pressable, Text } = require('react-native');
+	return function DateTimePicker(props: { accessibilityLabel?: string; onChange?: (event: unknown, date: Date) => void }) {
+		return createElement(
+			Pressable,
+			{
+				testID: 'time-picker',
+				accessibilityLabel: props.accessibilityLabel,
+				onPress: () => props.onChange?.({ type: 'set' }, new Date(2026, 9, 14, 21, 30)),
+			},
+			createElement(Text, null, 'picker'),
+		);
+	};
+});
+
+// Animations run instantly in tests (Reanimated and its worklets engine)
+jest.mock('react-native-worklets', () => require('react-native-worklets/lib/module/mock'));
+jest.mock('react-native-reanimated', () => ({
+	...require('react-native-reanimated/mock'),
+	useReducedMotion: () => false,
 }));
 
 // Fixed screen insets for tests

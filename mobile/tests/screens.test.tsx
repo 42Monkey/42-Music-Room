@@ -49,7 +49,7 @@ describe('Settings screen', () => {
 
 		await waitFor(() => expect(screen.getByText('Connected to http://10.0.0.5:8080')).toBeTruthy());
 		expect(fetchMock.mock.calls[0][0]).toBe('http://10.0.0.5:8080/health');
-		expect(await AsyncStorage.getItem('serverUrl')).toBe('http://10.0.0.5:8080');
+		expect(JSON.parse((await AsyncStorage.getItem('serverUrl'))!).url).toBe('http://10.0.0.5:8080');
 	});
 
 	it('saves the address but warns when nothing answers', async () => {
@@ -69,7 +69,7 @@ describe('Settings screen', () => {
 	});
 
 	it('goes back to the default address', async () => {
-		await AsyncStorage.setItem('serverUrl', 'http://10.0.0.5:8080');
+		await AsyncStorage.setItem('serverUrl', JSON.stringify({ url: 'http://10.0.0.5:8080', defaultUrl: 'http://192.168.1.10:8080' }));
 		await renderSettings();
 
 		await fireEvent.press(screen.getByRole('button', { name: 'Use default address' }));
@@ -149,6 +149,25 @@ describe('Rooms screen', () => {
 		await fireEvent.press(screen.getByRole('button', { name: 'Open settings' }));
 
 		expect(router.push).toHaveBeenCalledWith('/settings');
+	});
+
+	it('opens a room when tapped', async () => {
+		fetchMock.mockResolvedValue(reply(200, ROOMS));
+		await renderRooms();
+		await waitFor(() => expect(screen.getByText('Friday Night Vote')).toBeTruthy());
+
+		await fireEvent.press(screen.getByRole('button', { name: 'Open Friday Night Vote' }));
+
+		expect(router.push).toHaveBeenCalledWith('/rooms/r1');
+	});
+
+	it('opens the new room form', async () => {
+		fetchMock.mockResolvedValue(reply(200, []));
+		await renderRooms();
+
+		await fireEvent.press(screen.getByRole('button', { name: 'Create a room' }));
+
+		expect(router.push).toHaveBeenCalledWith('/rooms/new');
 	});
 
 	it('shows whether live updates are connected', async () => {

@@ -1,6 +1,7 @@
 import { ApiError, NetworkError } from '@/api/errors';
+import { LocationError } from '@/lib/location';
 
-export type ErrorAction = 'settings' | 'login' | 'retry';
+export type ErrorAction = 'settings' | 'login' | 'retry' | 'phone-settings';
 
 export type ErrorDescription = {
 	title: string;
@@ -46,9 +47,32 @@ function describeNetwork(error: NetworkError): ErrorDescription {
 	}
 }
 
+// Room access rules, worded for people rather than developers
+const ROOM_RULES: Record<string, ErrorDescription> = {
+	'This room is invite-only': {
+		title: 'Invite only',
+		message: 'Only invited people can take part in this room. Ask the owner for an invite.',
+	},
+	'This room is outside its active time window': {
+		title: 'Closed right now',
+		message: 'This room only accepts people during its time window. Come back then.',
+	},
+	"You are outside this room's allowed location radius": {
+		title: 'Too far away',
+		message: "You need to be at the room's place to take part.",
+	},
+	'This room requires lat/lng query params to verify your location': {
+		title: 'Location needed',
+		message: 'This room only accepts people at its place. Allow location access, then try again.',
+	},
+};
+
 // Backend answers: one message per status code
 function describeApi(error: ApiError): ErrorDescription {
 	const { status } = error;
+	if (typeof error.serverMessage === 'string' && ROOM_RULES[error.serverMessage]) {
+		return ROOM_RULES[error.serverMessage];
+	}
 	if (status === 400) return { title: 'Check your input', message: serverText(error, 'Some fields are not valid.') };
 	if (status === 401) {
 		return { title: 'Session ended', message: 'Your session expired. Log in again to continue.', action: 'login' };
@@ -74,6 +98,19 @@ function describeApi(error: ApiError): ErrorDescription {
 export function describeError(error: unknown): ErrorDescription {
 	if (error instanceof NetworkError) return describeNetwork(error);
 	if (error instanceof ApiError) return describeApi(error);
+	if (error instanceof LocationError) {
+		return error.reason === 'denied'
+			? {
+					title: 'Location access is off',
+					message: "Allow location access in your phone's settings, then try again.",
+					action: 'phone-settings',
+				}
+			: {
+					title: "Can't find your location",
+					message: 'Check that location services are on, then try again.',
+					action: 'retry',
+				};
+	}
 	const text = error instanceof Error ? error.message : String(error);
 	return { title: 'Something went wrong', message: toSentence(text) || 'Try again in a moment.' };
 }

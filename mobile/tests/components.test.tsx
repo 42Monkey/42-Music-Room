@@ -1,9 +1,13 @@
 import { StyleSheet, Text } from 'react-native';
 import type { BottomTabBarProps } from 'expo-router/tabs';
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import * as SplashScreen from 'expo-splash-screen';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react-native';
 import { Button } from '@/components/Button';
 import { FloatingTabBar, TabBarSpaceContext } from '@/components/FloatingTabBar';
+import { LaunchAnimation } from '@/components/LaunchAnimation';
 import { OnAirBadge } from '@/components/OnAirBadge';
+import { SegmentedControl } from '@/components/SegmentedControl';
+import { formatTime, TimeField } from '@/components/TimeField';
 import { Screen } from '@/components/Screen';
 import { TextField } from '@/components/TextField';
 
@@ -37,6 +41,63 @@ describe('Button', () => {
 	});
 });
 
+jest.mock('expo-splash-screen', () => ({
+	preventAutoHideAsync: jest.fn(async () => {}),
+	hideAsync: jest.fn(async () => {}),
+}));
+
+describe('LaunchAnimation', () => {
+	const loader = () => screen.queryByRole('progressbar', { name: 'Loading Music Room' });
+
+	beforeEach(() => {
+		jest.useFakeTimers();
+	});
+
+	// Remove it while the fake clock still runs, or its pending timers never fire
+	afterEach(async () => {
+		await cleanup();
+		jest.useRealTimers();
+	});
+
+	it('takes over from the phone launch screen once drawn', async () => {
+		await render(<LaunchAnimation ready={false} />);
+
+		await fireEvent(loader()!, 'layout', { nativeEvent: { layout: { x: 0, y: 0, width: 390, height: 844 } } });
+
+		expect(SplashScreen.hideAsync).toHaveBeenCalled();
+		expect(screen.getByText('Music Room')).toBeTruthy();
+	});
+
+	it('stays while the app is loading', async () => {
+		await render(<LaunchAnimation ready={false} />);
+
+		await act(() => jest.advanceTimersByTime(5000));
+
+		expect(loader()).toBeTruthy();
+	});
+
+	it('plays the intro even when the app is already ready', async () => {
+		await render(<LaunchAnimation ready />);
+
+		await act(() => jest.advanceTimersByTime(1500));
+		expect(loader()).toBeTruthy();
+
+		await act(() => jest.advanceTimersByTime(500));
+		await act(() => jest.advanceTimersByTime(500));
+		expect(loader()).toBeNull();
+	});
+
+	it('leaves once the app is ready', async () => {
+		const view = await render(<LaunchAnimation ready={false} />);
+		await act(() => jest.advanceTimersByTime(3000));
+
+		await act(() => view.rerender(<LaunchAnimation ready />));
+		await act(() => jest.advanceTimersByTime(500));
+
+		expect(loader()).toBeNull();
+	});
+});
+
 describe('TextField', () => {
 	it('shows its label and passes typed text', async () => {
 		const onChangeText = jest.fn();
@@ -66,6 +127,45 @@ describe('OnAirBadge', () => {
 		await render(<OnAirBadge on={false} />);
 
 		expect(screen.getByText('Off air')).toBeTruthy();
+	});
+});
+
+describe('SegmentedControl', () => {
+	const OPTIONS = [
+		{ value: 'PUBLIC', label: 'Public' },
+		{ value: 'PRIVATE', label: 'Private' },
+	];
+
+	it('shows which option is chosen', async () => {
+		await render(<SegmentedControl label="Who can see it" options={OPTIONS} value="PUBLIC" onChange={() => {}} />);
+
+		expect(screen.getByRole('radio', { name: 'Public' }).props.accessibilityState).toMatchObject({ checked: true });
+		expect(screen.getByRole('radio', { name: 'Private' }).props.accessibilityState).toMatchObject({ checked: false });
+	});
+
+	it('picks another option when pressed', async () => {
+		const onChange = jest.fn();
+		await render(<SegmentedControl label="Who can see it" options={OPTIONS} value="PUBLIC" onChange={onChange} />);
+
+		await fireEvent.press(screen.getByRole('radio', { name: 'Private' }));
+
+		expect(onChange).toHaveBeenCalledWith('PRIVATE');
+	});
+});
+
+describe('TimeField', () => {
+	it('shows its label and passes the picked time', async () => {
+		const onChange = jest.fn();
+		await render(<TimeField label="Opens at" value={new Date(2026, 9, 14, 20, 0)} onChange={onChange} />);
+
+		expect(screen.getByText('Opens at')).toBeTruthy();
+		await fireEvent.press(screen.getByTestId('time-picker'));
+
+		expect(onChange).toHaveBeenCalledWith(new Date(2026, 9, 14, 21, 30));
+	});
+
+	it('formats times on 24 hours', () => {
+		expect(formatTime(new Date(2026, 9, 14, 9, 5))).toBe('09:05');
 	});
 });
 

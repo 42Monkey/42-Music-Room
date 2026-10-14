@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Linking, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { Button } from '@/components/Button';
 import { colors, radius, space, type } from '@/theme';
@@ -21,8 +21,15 @@ export function ErrorState({ error, onRetry }: Props) {
 				{action === 'settings' && (
 					<Button label="Open settings" icon="settings-outline" onPress={() => router.push('/settings')} />
 				)}
+				{action === 'phone-settings' && (
+					<Button label="Open phone settings" icon="settings-outline" onPress={() => Linking.openSettings()} />
+				)}
 				{onRetry && action !== 'login' && (
-					<Button label="Try again" variant={action === 'settings' ? 'secondary' : 'primary'} onPress={onRetry} />
+					<Button
+						label="Try again"
+						variant={action === 'settings' || action === 'phone-settings' ? 'secondary' : 'primary'}
+						onPress={onRetry}
+					/>
 				)}
 			</View>
 		</View>

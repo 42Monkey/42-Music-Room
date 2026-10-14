@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { Linking, View, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import { describeError } from './describeError';
 import { Dialog, type DialogOptions } from './Dialog';
@@ -56,6 +56,8 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
 			const close = { label: 'Close' };
 			if (described.action === 'settings') {
 				showDialog({ ...described, primary: { label: 'Open settings', onPress: () => router.push('/settings') }, secondary: close });
+			} else if (described.action === 'phone-settings') {
+				showDialog({ ...described, primary: { label: 'Open phone settings', onPress: () => Linking.openSettings() }, secondary: close });
 			} else if (described.action === 'retry' && options.onRetry) {
 				showDialog({ ...described, primary: { label: 'Try again', onPress: options.onRetry }, secondary: close });
 			} else {

@@ -1,5 +1,7 @@
 import { api, configureApi } from '@/api/client';
 import { ApiError, NetworkError } from '@/api/errors';
+import { createRoom, getRoom } from '@/api/rooms';
+import { listTracks } from '@/api/tracks';
 import { failure, mockFetch, reply } from './helpers';
 
 const onUnauthorized = jest.fn();
@@ -121,6 +123,32 @@ describe('api client', () => {
 
 		expect(error).toBeInstanceOf(NetworkError);
 		expect(error.reason).toBe('timeout');
+	});
+
+	it('creates a room', async () => {
+		fetchMock.mockResolvedValue(reply(201, { id: 'r9', name: 'Party' }));
+
+		const room = await createRoom({ name: 'Party', kind: 'VOTE', visibility: 'PUBLIC', accessPolicy: 'OPEN' });
+
+		expect(fetchMock.mock.calls[0][0]).toBe('http://10.0.0.5:8080/rooms');
+		expect(fetchMock.mock.calls[0][1].method).toBe('POST');
+		expect(room.id).toBe('r9');
+	});
+
+	it('loads one room', async () => {
+		fetchMock.mockResolvedValue(reply(200, { id: 'r1' }));
+
+		await getRoom('r1');
+
+		expect(fetchMock.mock.calls[0][0]).toBe('http://10.0.0.5:8080/rooms/r1');
+	});
+
+	it('sends the phone position with the track list when given', async () => {
+		fetchMock.mockResolvedValue(reply(200, []));
+
+		await listTracks('r1', { lat: 13.75, lng: 100.5 });
+
+		expect(fetchMock.mock.calls[0][0]).toBe('http://10.0.0.5:8080/rooms/r1/tracks?lat=13.75&lng=100.5');
 	});
 
 	it('refuses to call without a server address', async () => {

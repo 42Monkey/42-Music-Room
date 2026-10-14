@@ -16,6 +16,17 @@ type Settings = {
 
 const SettingsContext = createContext<Settings | null>(null);
 
+// Saved address and the default it replaced, or null if unreadable
+function readSaved(raw: string | null): { url: string; defaultUrl: string } | null {
+	if (!raw) return null;
+	try {
+		const saved = JSON.parse(raw);
+		return typeof saved?.url === 'string' && typeof saved?.defaultUrl === 'string' ? saved : null;
+	} catch {
+		return null;
+	}
+}
+
 // Backend address chosen in the app (V.5), saved on the phone
 export function SettingsProvider({ children }: { children: ReactNode }) {
 	const defaultUrl = defaultServerUrl();
@@ -26,20 +37,29 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 	// Every API call goes to the current address (set before child screens run)
 	configureApi({ baseUrl: serverUrl });
 
-	// Load the saved address once
+	// Load the saved address once; drop it if `make` has opened a new default since
 	useEffect(() => {
 		AsyncStorage.getItem(STORAGE_KEY)
-			.then(setCustomUrl)
+			.then(async (raw) => {
+				const saved = readSaved(raw);
+				if (saved && saved.defaultUrl === defaultUrl) setCustomUrl(saved.url);
+				else if (raw) await AsyncStorage.removeItem(STORAGE_KEY);
+			})
 			.catch(() => setCustomUrl(null))
 			.finally(() => setReady(true));
-	}, []);
+	}, [defaultUrl]);
 
 	// The API switches at once, no wait for the next render
-	const saveServerUrl = useCallback(async (url: string) => {
-		await AsyncStorage.setItem(STORAGE_KEY, url);
-		configureApi({ baseUrl: url });
-		setCustomUrl(url);
-	}, []);
+	const saveServerUrl = useCallback(
+		async (url: string) => {
+			// Saving the default keeps the app following `make`
+			if (url === defaultUrl) await AsyncStorage.removeItem(STORAGE_KEY);
+			else await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify({ url, defaultUrl }));
+			configureApi({ baseUrl: url });
+			setCustomUrl(url === defaultUrl ? null : url);
+		},
+		[defaultUrl],
+	);
 
 	const resetServerUrl = useCallback(async () => {
 		await AsyncStorage.removeItem(STORAGE_KEY);

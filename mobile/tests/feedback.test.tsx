@@ -1,9 +1,10 @@
-import { Pressable, Text } from 'react-native';
+import { Linking, Pressable, Text } from 'react-native';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { router } from 'expo-router';
 import { ApiError, NetworkError } from '@/api/errors';
 import { describeError } from '@/feedback/describeError';
 import { ErrorText } from '@/feedback/ErrorText';
+import { LocationError } from '@/lib/location';
 import { FeedbackProvider, useFeedback } from '@/feedback/FeedbackProvider';
 
 describe('describeError', () => {
@@ -37,10 +38,38 @@ describe('describeError', () => {
 	});
 
 	it('shows the server message for a refused action', () => {
-		const result = describeError(new ApiError(403, 'This room is invite-only'));
+		const result = describeError(new ApiError(403, 'Only the owner can manage members'));
 
 		expect(result.title).toBe('Not allowed');
-		expect(result.message).toBe('This room is invite-only.');
+		expect(result.message).toBe('Only the owner can manage members.');
+	});
+
+	it('explains that a room is for invited people only', () => {
+		const result = describeError(new ApiError(403, 'This room is invite-only'));
+
+		expect(result.title).toBe('Invite only');
+		expect(result.message).toBe('Only invited people can take part in this room. Ask the owner for an invite.');
+	});
+
+	it('explains that a room is closed outside its time window', () => {
+		const result = describeError(new ApiError(403, 'This room is outside its active time window'));
+
+		expect(result.title).toBe('Closed right now');
+		expect(result.message).toBe('This room only accepts people during its time window. Come back then.');
+	});
+
+	it('explains that the user is too far from the room', () => {
+		const result = describeError(new ApiError(403, "You are outside this room's allowed location radius"));
+
+		expect(result.title).toBe('Too far away');
+		expect(result.message).toBe("You need to be at the room's place to take part.");
+	});
+
+	it('asks for the location when a room needs it', () => {
+		const result = describeError(new ApiError(400, 'This room requires lat/lng query params to verify your location'));
+
+		expect(result.title).toBe('Location needed');
+		expect(result.message).toBe('This room only accepts people at its place. Allow location access, then try again.');
 	});
 
 	it('turns validation messages into sentences', () => {
@@ -69,6 +98,20 @@ describe('describeError', () => {
 
 		expect(result.title).toBe('Server error');
 		expect(result.message).toBe('The server hit a problem. Try again in a moment.');
+		expect(result.action).toBe('retry');
+	});
+
+	it('sends the user to the phone settings when location access is off', () => {
+		const result = describeError(new LocationError('denied'));
+
+		expect(result.title).toBe('Location access is off');
+		expect(result.action).toBe('phone-settings');
+	});
+
+	it('offers a retry when the phone cannot find its position', () => {
+		const result = describeError(new LocationError('unavailable'));
+
+		expect(result.title).toBe("Can't find your location");
 		expect(result.action).toBe('retry');
 	});
 
@@ -179,6 +222,15 @@ describe('showError', () => {
 		expect(onRetry).toHaveBeenCalled();
 	});
 
+	it('opens the phone settings when location access is off', async () => {
+		const openSettings = jest.spyOn(Linking, 'openSettings').mockResolvedValue(undefined);
+		await renderWith((f) => f.showError(new LocationError('denied')));
+
+		await fireEvent.press(screen.getByText('Open phone settings'));
+
+		expect(openSettings).toHaveBeenCalled();
+	});
+
 	it('can show a short error as a toast', async () => {
 		await renderWith((f) => f.showError(new ApiError(409, 'You have already voted for this track'), { as: 'toast' }));
 
@@ -188,10 +240,10 @@ describe('showError', () => {
 
 describe('ErrorText', () => {
 	it('shows the explanation of an error as an alert', async () => {
-		await render(<ErrorText error={new ApiError(403, 'This room is invite-only')} />);
+		await render(<ErrorText error={new ApiError(403, 'Only the owner can manage members')} />);
 
 		expect(screen.getByRole('alert')).toBeTruthy();
-		expect(screen.getByText('This room is invite-only.')).toBeTruthy();
+		expect(screen.getByText('Only the owner can manage members.')).toBeTruthy();
 	});
 
 	it('shows nothing without an error', async () => {

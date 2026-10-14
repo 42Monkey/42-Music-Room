@@ -33,6 +33,16 @@ export function mockFetch() {
 	return fetchMock;
 }
 
+// Fake server answering per path (query string ignored)
+export function routeFetch(fetchMock: jest.Mock, routes: Record<string, unknown>) {
+	fetchMock.mockImplementation(async (url: string) => {
+		const path = url.replace(/^https?:\/\/[^/]+/, '').split('?')[0];
+		const answer = routes[path];
+		if (answer === undefined) return reply(404, { statusCode: 404, message: `No fake route for ${path}` });
+		return answer;
+	});
+}
+
 // Same providers as the app, around one screen
 export function renderWithProviders(screen: ReactElement) {
 	return render(

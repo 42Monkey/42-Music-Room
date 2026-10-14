@@ -161,6 +161,21 @@ describe('useRoomTracks', () => {
 		await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
 	});
 
+	it('waits until the room is ready before loading', async () => {
+		const view = await renderHook(() => useRoomTracks('room-1', { enabled: false }), { wrapper });
+
+		expect(fetchMock).not.toHaveBeenCalled();
+		expect(socket.sent).toEqual([]);
+		expect(view.result.current.loading).toBe(true);
+	});
+
+	it('sends the phone position when the room needs it', async () => {
+		const view = await renderHook(() => useRoomTracks('room-1', { position: { lat: 13.75, lng: 100.5 } }), { wrapper });
+		await waitFor(() => expect(view.result.current.loading).toBe(false));
+
+		expect(fetchMock.mock.calls[0][0]).toBe('http://192.168.1.10:8080/rooms/room-1/tracks?lat=13.75&lng=100.5');
+	});
+
 	it('reports why the list could not load', async () => {
 		fetchMock.mockResolvedValue(reply(403, { statusCode: 403, message: 'This room is invite-only' }));
 

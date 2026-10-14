@@ -1,8 +1,8 @@
-import { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { LaunchAnimation } from '@/components/LaunchAnimation';
 import { FeedbackProvider } from '@/feedback/FeedbackProvider';
 import { SessionProvider, useSession } from '@/session/SessionProvider';
 import { SessionWatcher } from '@/session/SessionWatcher';
@@ -11,7 +11,7 @@ import { ConnectionWatcher } from '@/socket/ConnectionWatcher';
 import { SocketProvider } from '@/socket/SocketProvider';
 import { colors } from '@/theme';
 
-// Launch screen stays until the saved login is checked
+// Phone launch screen stays until the opening animation takes over
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
 export default function RootLayout() {
@@ -40,19 +40,18 @@ function RootNavigator() {
 	const loading = !ready || status === 'loading';
 	const signedIn = status === 'signedIn';
 
-	useEffect(() => {
-		if (!loading) SplashScreen.hideAsync().catch(() => {});
-	}, [loading]);
-
 	return (
-		<Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
-			<Stack.Protected guard={signedIn}>
-				<Stack.Screen name="(app)" />
-			</Stack.Protected>
-			<Stack.Protected guard={!signedIn}>
-				<Stack.Screen name="(auth)" />
-			</Stack.Protected>
-			<Stack.Screen name="settings" options={{ presentation: 'modal' }} />
-		</Stack>
+		<>
+			<Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
+				<Stack.Protected guard={signedIn}>
+					<Stack.Screen name="(app)" />
+				</Stack.Protected>
+				<Stack.Protected guard={!signedIn}>
+					<Stack.Screen name="(auth)" />
+				</Stack.Protected>
+				<Stack.Screen name="settings" options={{ presentation: 'modal' }} />
+			</Stack>
+			<LaunchAnimation ready={!loading} />
+		</>
 	);
 }

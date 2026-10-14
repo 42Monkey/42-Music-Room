@@ -18,39 +18,63 @@ type Props = {
 	title?: string;
 	right?: ReactNode;
 	onClose?: () => void;
+	back?: { label: string; onPress: () => void };
 	scroll?: boolean;
 	refreshControl?: ReactElement<RefreshControlProps>;
 	children: ReactNode;
 };
 
 // Page frame: safe area, big title, scrolling body
-export function Screen({ title, right, onClose, scroll = true, refreshControl, children }: Props) {
+export function Screen({ title, right, onClose, back, scroll = true, refreshControl, children }: Props) {
 	// Extra room at the bottom when the floating tab bar is on screen
 	const bottomSpace = { paddingBottom: space.huge + useContext(TabBarSpaceContext) };
-	const header = (title || right || onClose) && (
-		<View style={styles.header}>
-			{title ? (
-				<Text style={styles.title} accessibilityRole="header">
-					{title}
-				</Text>
-			) : (
-				<View />
-			)}
-			<View style={styles.right}>
+
+	const titleText = title ? (
+		<Text style={[styles.title, back && styles.detailTitle]} accessibilityRole="header">
+			{title}
+		</Text>
+	) : (
+		<View />
+	);
+
+	// Detail screens: back link and badge on top, smaller title below
+	const header = back ? (
+		<View style={styles.detailHeader}>
+			<View style={styles.backRow}>
+				<Pressable
+					onPress={back.onPress}
+					accessibilityRole="button"
+					accessibilityLabel={`Back to ${back.label}`}
+					hitSlop={12}
+					style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}
+				>
+					<Ionicons name="chevron-back" size={22} color={colors.ink} />
+					<Text style={styles.backText}>{back.label}</Text>
+				</Pressable>
 				{right}
-				{onClose && (
-					<Pressable
-						onPress={onClose}
-						accessibilityRole="button"
-						accessibilityLabel="Close"
-						hitSlop={12}
-						style={({ pressed }) => [styles.close, pressed && styles.pressed]}
-					>
-						<Ionicons name="close" size={22} color={colors.ink} />
-					</Pressable>
-				)}
 			</View>
+			{titleText}
 		</View>
+	) : (
+		(title || right || onClose) && (
+			<View style={styles.header}>
+				{titleText}
+				<View style={styles.right}>
+					{right}
+					{onClose && (
+						<Pressable
+							onPress={onClose}
+							accessibilityRole="button"
+							accessibilityLabel="Close"
+							hitSlop={12}
+							style={({ pressed }) => [styles.close, pressed && styles.pressed]}
+						>
+							<Ionicons name="close" size={22} color={colors.ink} />
+						</Pressable>
+					)}
+				</View>
+			</View>
+		)
 	);
 
 	return (
@@ -97,10 +121,36 @@ const styles = StyleSheet.create({
 		paddingTop: space.lg,
 		paddingBottom: space.xl,
 	},
+	detailHeader: {
+		paddingTop: space.sm,
+		paddingBottom: space.md,
+		gap: space.sm,
+	},
+	backRow: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		justifyContent: 'space-between',
+		minHeight: 44,
+	},
+	backButton: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		marginLeft: -6,
+	},
+	backText: {
+		...type.body,
+		fontWeight: '500',
+		color: colors.ink,
+	},
 	title: {
 		...type.largeTitle,
 		color: colors.ink,
 		flexShrink: 1,
+	},
+	detailTitle: {
+		fontSize: 28,
+		lineHeight: 34,
+		letterSpacing: -0.5,
 	},
 	right: {
 		flexDirection: 'row',

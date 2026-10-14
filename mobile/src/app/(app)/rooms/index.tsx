@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { listRooms } from '@/api/rooms';
+import { Button } from '@/components/Button';
 import { OnAirBadge } from '@/components/OnAirBadge';
 import { Screen } from '@/components/Screen';
 import { ErrorState } from '@/feedback/ErrorState';
@@ -31,9 +33,12 @@ export default function RoomsScreen() {
 		}
 	}, []);
 
-	useEffect(() => {
-		load();
-	}, [load]);
+	// Reload each time the list comes back on screen (after creating a room)
+	useFocusEffect(
+		useCallback(() => {
+			load();
+		}, [load]),
+	);
 
 	const refresh = async () => {
 		setRefreshing(true);
@@ -78,33 +83,43 @@ export default function RoomsScreen() {
 			) : (
 				<View style={styles.list}>
 					{rooms.map((room, index) => (
-						<RoomRow key={room.id} room={room} last={index === rooms.length - 1} />
+						<RoomRow key={room.id} room={room} index={index} last={index === rooms.length - 1} />
 					))}
 				</View>
+			)}
+			{!error && rooms !== null && (
+				<Button label="Create a room" icon="add" onPress={() => router.push('/rooms/new')} style={styles.create} />
 			)}
 		</Screen>
 	);
 }
 
-// One room: kind icon, name, private lock
-function RoomRow({ room, last }: { room: Room; last: boolean }) {
+// One room: kind icon, name, private lock; fades in on first load
+function RoomRow({ room, index, last }: { room: Room; index: number; last: boolean }) {
 	const kind = KIND[room.kind];
+	const isPrivate = room.visibility === 'PRIVATE';
 
 	return (
-		<View style={[styles.row, !last && styles.rowLine]}>
-			<View style={styles.kindIcon}>
-				<Ionicons name={kind.icon} size={18} color={colors.accent} />
-			</View>
-			<View style={styles.rowText}>
-				<Text style={styles.name} numberOfLines={1}>
-					{room.name}
-				</Text>
-				<Text style={styles.kind}>{kind.label}</Text>
-			</View>
-			{room.visibility === 'PRIVATE' && (
-				<Ionicons name="lock-closed" size={16} color={colors.muted} accessibilityLabel="Private room" />
-			)}
-		</View>
+		<Animated.View entering={FadeInDown.duration(250).delay(Math.min(index, 8) * 40)}>
+			<Pressable
+				onPress={() => router.push(`/rooms/${room.id}`)}
+				accessibilityRole="button"
+				accessibilityLabel={`Open ${room.name}${isPrivate ? ', private' : ''}`}
+				style={({ pressed }) => [styles.row, !last && styles.rowLine, pressed && styles.rowPressed]}
+			>
+				<View style={styles.kindIcon}>
+					<Ionicons name={kind.icon} size={18} color={colors.accent} />
+				</View>
+				<View style={styles.rowText}>
+					<Text style={styles.name} numberOfLines={1}>
+						{room.name}
+					</Text>
+					<Text style={styles.kind}>{kind.label}</Text>
+				</View>
+				{isPrivate && <Ionicons name="lock-closed" size={16} color={colors.muted} accessibilityLabel="Private room" />}
+				<Ionicons name="chevron-forward" size={16} color={colors.line} />
+			</Pressable>
+		</Animated.View>
 	);
 }
 
@@ -139,6 +154,7 @@ const styles = StyleSheet.create({
 		backgroundColor: colors.surface,
 		borderRadius: radius.card,
 		paddingHorizontal: space.lg,
+		overflow: 'hidden',
 	},
 	row: {
 		flexDirection: 'row',
@@ -149,6 +165,9 @@ const styles = StyleSheet.create({
 	rowLine: {
 		borderBottomWidth: StyleSheet.hairlineWidth,
 		borderBottomColor: colors.line,
+	},
+	rowPressed: {
+		opacity: 0.55,
 	},
 	kindIcon: {
 		width: 36,
@@ -169,5 +188,8 @@ const styles = StyleSheet.create({
 	kind: {
 		...type.caption,
 		color: colors.muted,
+	},
+	create: {
+		marginTop: space.xl,
 	},
 });

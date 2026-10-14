@@ -43,6 +43,25 @@ export type Room = {
 	updatedAt: string;
 };
 
+// Body of POST /rooms
+export type CreateRoomInput = {
+	name: string;
+	description?: string;
+	kind: RoomKind;
+	visibility: Visibility;
+	accessPolicy: AccessPolicy;
+	locationLat?: number;
+	locationLng?: number;
+	locationRadiusM?: number;
+	windowStart?: string;
+	windowEnd?: string;
+};
+
+export type Position = {
+	lat: number;
+	lng: number;
+};
+
 export type Track = {
 	id: string;
 	roomId: string;

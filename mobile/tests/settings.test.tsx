@@ -59,21 +59,27 @@ async function renderSettings() {
 	return view;
 }
 
+const DEFAULT = 'http://192.168.1.10:8080';
+
+// Address saved the way the app stores it: with the default it replaced
+const saveCustom = (url: string, defaultUrl = DEFAULT) =>
+	AsyncStorage.setItem('serverUrl', JSON.stringify({ url, defaultUrl }));
+
 describe('SettingsProvider', () => {
 	beforeEach(async () => {
 		await AsyncStorage.clear();
-		process.env.EXPO_PUBLIC_API_URL = 'http://192.168.1.10:8080';
+		process.env.EXPO_PUBLIC_API_URL = DEFAULT;
 	});
 
 	it('uses the default address when none is saved', async () => {
 		const { result } = await renderSettings();
 
-		expect(result.current.serverUrl).toBe('http://192.168.1.10:8080');
+		expect(result.current.serverUrl).toBe(DEFAULT);
 		expect(result.current.isCustom).toBe(false);
 	});
 
 	it('uses the address saved on the phone', async () => {
-		await AsyncStorage.setItem('serverUrl', 'https://abc.trycloudflare.com');
+		await saveCustom('https://abc.trycloudflare.com');
 
 		const { result } = await renderSettings();
 
@@ -81,27 +87,58 @@ describe('SettingsProvider', () => {
 		expect(result.current.isCustom).toBe(true);
 	});
 
-	it('saves a new address', async () => {
+	it('forgets an address saved while another default was in use', async () => {
+		await saveCustom('https://old-link.trycloudflare.com', 'https://previous-run.trycloudflare.com');
+
+		const { result } = await renderSettings();
+
+		expect(result.current.serverUrl).toBe(DEFAULT);
+		expect(result.current.isCustom).toBe(false);
+		expect(await AsyncStorage.getItem('serverUrl')).toBeNull();
+	});
+
+	it('forgets an address saved in the old format', async () => {
+		await AsyncStorage.setItem('serverUrl', 'https://old-link.trycloudflare.com');
+
+		const { result } = await renderSettings();
+
+		expect(result.current.serverUrl).toBe(DEFAULT);
+		expect(await AsyncStorage.getItem('serverUrl')).toBeNull();
+	});
+
+	it('saves a new address with the default it replaces', async () => {
 		const { result } = await renderSettings();
 
 		await act(() => result.current.saveServerUrl('http://10.0.0.5:8080'));
 
 		expect(result.current.serverUrl).toBe('http://10.0.0.5:8080');
-		expect(await AsyncStorage.getItem('serverUrl')).toBe('http://10.0.0.5:8080');
+		expect(JSON.parse((await AsyncStorage.getItem('serverUrl'))!)).toEqual({
+			url: 'http://10.0.0.5:8080',
+			defaultUrl: DEFAULT,
+		});
+	});
+
+	it('keeps following the default when the default is saved', async () => {
+		const { result } = await renderSettings();
+
+		await act(() => result.current.saveServerUrl(DEFAULT));
+
+		expect(result.current.isCustom).toBe(false);
+		expect(await AsyncStorage.getItem('serverUrl')).toBeNull();
 	});
 
 	it('goes back to the default address', async () => {
-		await AsyncStorage.setItem('serverUrl', 'http://10.0.0.5:8080');
+		await saveCustom('http://10.0.0.5:8080');
 		const { result } = await renderSettings();
 
 		await act(() => result.current.resetServerUrl());
 
-		expect(result.current.serverUrl).toBe('http://192.168.1.10:8080');
+		expect(result.current.serverUrl).toBe(DEFAULT);
 		expect(await AsyncStorage.getItem('serverUrl')).toBeNull();
 	});
 
 	it('points the API at the current address', async () => {
-		await AsyncStorage.setItem('serverUrl', 'http://10.0.0.5:8080');
+		await saveCustom('http://10.0.0.5:8080');
 		const fetchMock = mockFetch();
 		fetchMock.mockResolvedValue(reply(200));
 
