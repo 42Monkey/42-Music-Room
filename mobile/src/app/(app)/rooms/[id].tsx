@@ -161,6 +161,15 @@ export default function RoomScreen() {
 					style={styles.addButton}
 				/>
 			)}
+			{room.ownerId === user?.id && (room.visibility === 'PRIVATE' || room.accessPolicy === 'INVITE_ONLY') && (
+				<Button
+					label="Invite people"
+					variant="secondary"
+					icon="person-add"
+					onPress={() => router.push({ pathname: '/rooms/invite', params: { roomId } })}
+					style={styles.inviteButton}
+				/>
+			)}
 
 			<View style={styles.sectionHeader}>
 				<Text style={styles.sectionTitle} accessibilityRole="header">
@@ -282,6 +291,9 @@ const styles = StyleSheet.create({
 	},
 	addButton: {
 		marginTop: space.lg,
+	},
+	inviteButton: {
+		marginTop: space.sm,
 	},
 	sectionHeader: {
 		flexDirection: 'row',

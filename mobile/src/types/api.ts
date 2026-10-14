@@ -88,3 +88,18 @@ export type TrackResult = {
 	previewUrl: string | null;
 	albumCoverUrl: string | null;
 };
+
+// Someone found in a search (no private details)
+export type UserSummary = {
+	id: string;
+	displayName: string;
+	avatarUrl: string | null;
+};
+
+// One invited person of a room
+export type RoomMember = {
+	id: string;
+	roomId: string;
+	userId: string;
+	user: UserSummary;
+};

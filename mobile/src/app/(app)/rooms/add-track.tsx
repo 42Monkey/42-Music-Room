@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import Animated, { FadeIn } from 'react-native-reanimated';
@@ -8,12 +8,10 @@ import { Screen } from '@/components/Screen';
 import { TextField } from '@/components/TextField';
 import { ErrorState } from '@/feedback/ErrorState';
 import { useFeedback } from '@/feedback/FeedbackProvider';
+import { useSearch } from '@/lib/useSearch';
 import { formatDuration } from '@/rooms/roomText';
 import { colors, radius, space, type } from '@/theme';
 import type { TrackResult } from '@/types/api';
-
-const MIN_LETTERS = 2;
-const PAUSE_MS = 350;
 
 type Params = { roomId: string; kind?: string; lat?: string; lng?: string };
 
@@ -25,49 +23,12 @@ export default function AddTrackScreen() {
 	const verb = isVote ? 'Suggest' : 'Add';
 	const { lat, lng } = params;
 	const { toast, showError } = useFeedback();
-	const [text, setText] = useState('');
-	const [results, setResults] = useState<TrackResult[]>([]);
-	const [searched, setSearched] = useState('');
-	const [searching, setSearching] = useState(false);
-	const [error, setError] = useState<unknown>(null);
 	const [adding, setAdding] = useState<string | null>(null);
-	const latest = useRef(0);
-
-	const search = useCallback(
-		async (words: string) => {
-			const id = ++latest.current;
-			setSearching(true);
-			setError(null);
-			try {
-				const position = lat && lng ? { lat: Number(lat), lng: Number(lng) } : null;
-				const found = await searchTracks(roomId, words, position);
-				// An older search answering late is ignored
-				if (id !== latest.current) return;
-				setResults(found);
-				setSearched(words);
-			} catch (err) {
-				if (id === latest.current) setError(err);
-			} finally {
-				if (id === latest.current) setSearching(false);
-			}
-		},
+	const find = useCallback(
+		(words: string) => searchTracks(roomId, words, lat && lng ? { lat: Number(lat), lng: Number(lng) } : null),
 		[roomId, lat, lng],
 	);
-
-	// Searches once typing pauses
-	const words = text.trim();
-	useEffect(() => {
-		if (words.length < MIN_LETTERS) {
-			latest.current += 1;
-			setResults([]);
-			setSearched('');
-			setSearching(false);
-			setError(null);
-			return;
-		}
-		const timer = setTimeout(() => search(words), PAUSE_MS);
-		return () => clearTimeout(timer);
-	}, [words, search]);
+	const { text, setText, results, searched, searching, error, tooShort, searchNow } = useSearch(find);
 
 	// Adds the track, then back to the room where it shows up live
 	const add = async (result: TrackResult) => {
@@ -86,8 +47,8 @@ export default function AddTrackScreen() {
 
 	let body = null;
 	if (error) {
-		body = <ErrorState error={error} onRetry={() => search(words)} />;
-	} else if (words.length < MIN_LETTERS) {
+		body = <ErrorState error={error} onRetry={searchNow} />;
+	} else if (tooShort) {
 		body = <Text style={styles.hint}>Type a title or an artist.</Text>;
 	} else if (results.length === 0 && searching) {
 		body = <ActivityIndicator color={colors.accent} style={styles.loading} />;
@@ -127,7 +88,7 @@ export default function AddTrackScreen() {
 					autoFocus
 					autoCorrect={false}
 					returnKeyType="search"
-					onSubmitEditing={() => words.length >= MIN_LETTERS && search(words)}
+					onSubmitEditing={searchNow}
 				/>
 				{body}
 			</View>

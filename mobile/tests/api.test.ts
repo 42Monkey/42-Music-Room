@@ -1,6 +1,7 @@
 import { api, configureApi } from '@/api/client';
 import { ApiError, NetworkError } from '@/api/errors';
 import { createRoom, getRoom } from '@/api/rooms';
+import { inviteMember, listMembers, removeMember, searchUsers } from '@/api/members';
 import { addTrack, listTracks, searchTracks, unvoteTrack, voteTrack } from '@/api/tracks';
 import { failure, mockFetch, reply } from './helpers';
 
@@ -181,6 +182,35 @@ describe('api client', () => {
 		expect(fetchMock.mock.calls[0][1].method).toBe('POST');
 		expect(fetchMock.mock.calls[1][0]).toBe('http://10.0.0.5:8080/rooms/r1/tracks/t1/vote');
 		expect(fetchMock.mock.calls[1][1].method).toBe('DELETE');
+	});
+
+	it('finds people by name or email', async () => {
+		fetchMock.mockResolvedValue(reply(200, []));
+
+		await searchUsers('mia k');
+
+		expect(fetchMock.mock.calls[0][0]).toBe('http://10.0.0.5:8080/users?search=mia%20k');
+	});
+
+	it('lists the members of a room and invites one', async () => {
+		fetchMock.mockResolvedValue(reply(201, {}));
+
+		await listMembers('r1');
+		await inviteMember('r1', 'u2');
+
+		expect(fetchMock.mock.calls[0][0]).toBe('http://10.0.0.5:8080/rooms/r1/members');
+		expect(fetchMock.mock.calls[1][0]).toBe('http://10.0.0.5:8080/rooms/r1/members');
+		expect(fetchMock.mock.calls[1][1].method).toBe('POST');
+		expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({ userId: 'u2' });
+	});
+
+	it('removes someone from a room', async () => {
+		fetchMock.mockResolvedValue(reply(200, {}));
+
+		await removeMember('r1', 'u2');
+
+		expect(fetchMock.mock.calls[0][0]).toBe('http://10.0.0.5:8080/rooms/r1/members/u2');
+		expect(fetchMock.mock.calls[0][1].method).toBe('DELETE');
 	});
 
 	it('refuses to call without a server address', async () => {

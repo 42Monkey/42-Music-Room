@@ -3,12 +3,13 @@ import { fireEvent, screen, waitFor } from '@testing-library/react-native';
 import * as Location from 'expo-location';
 import { router, useLocalSearchParams } from 'expo-router';
 import AddTrackScreen from '@/app/(app)/rooms/add-track';
+import InviteScreen from '@/app/(app)/rooms/invite';
 import NewRoomScreen from '@/app/(app)/rooms/new';
 import RoomScreen from '@/app/(app)/rooms/[id]';
 import { currentPosition, LocationError } from '@/lib/location';
 import { emptyRoomForm, validateRoomForm, type RoomForm } from '@/rooms/roomForm';
 import { tokenStorage } from '@/session/tokenStorage';
-import { mockFetch, renderWithProviders, reply, routeFetch } from './helpers';
+import { mockFetch, renderWithProviders, reply, routeFetch, SERVER } from './helpers';
 
 // Local times, so the tests pass in any time zone
 const TODAY = new Date(2026, 9, 14, 18, 0);
@@ -122,6 +123,7 @@ const VOTE_ROOM = {
 	accessPolicy: 'OPEN',
 	ownerId: 'someone-else',
 };
+const ME = { id: 'me', displayName: 'Ben', email: 'ben@example.com' };
 const VOTE_TRACKS = [
 	{ id: 't1', title: 'Midnight City', artist: 'M83', score: 12, position: null },
 	{ id: 't2', title: 'Electric Feel', artist: 'MGMT', score: 9, position: null },
@@ -293,6 +295,43 @@ describe('Room screen', () => {
 		await fireEvent.press(await screen.findByRole('button', { name: 'Suggest a track' }));
 
 		expect(router.push).toHaveBeenCalledWith({ pathname: '/rooms/add-track', params: { roomId: 'r1', kind: 'VOTE' } });
+	});
+
+	it('lets the owner invite people to an invite-only room', async () => {
+		(router.push as jest.Mock).mockReset();
+		await tokenStorage.set('token', SERVER);
+		routeFetch(fetchMock, {
+			'/users/me': reply(200, ME),
+			'/rooms/r1': reply(200, { ...VOTE_ROOM, accessPolicy: 'INVITE_ONLY', ownerId: 'me' }),
+			'/rooms/r1/tracks': reply(200, []),
+		});
+		await renderWithProviders(<RoomScreen />);
+
+		await fireEvent.press(await screen.findByRole('button', { name: 'Invite people' }));
+
+		expect(router.push).toHaveBeenCalledWith({ pathname: '/rooms/invite', params: { roomId: 'r1' } });
+	});
+
+	it('shows invites only to the owner, and only where they matter', async () => {
+		await tokenStorage.set('token', SERVER);
+		routeFetch(fetchMock, {
+			'/users/me': reply(200, ME),
+			'/rooms/r1': reply(200, { ...VOTE_ROOM, ownerId: 'me' }),
+			'/rooms/r1/tracks': reply(200, []),
+		});
+		const view = await renderWithProviders(<RoomScreen />);
+		await screen.findByRole('button', { name: 'Suggest a track' });
+		expect(screen.queryByRole('button', { name: 'Invite people' })).toBeNull();
+		await view.unmount();
+
+		routeFetch(fetchMock, {
+			'/users/me': reply(200, ME),
+			'/rooms/r1': reply(200, { ...VOTE_ROOM, visibility: 'PRIVATE' }),
+			'/rooms/r1/tracks': reply(200, []),
+		});
+		await renderWithProviders(<RoomScreen />);
+		await screen.findByRole('button', { name: 'Suggest a track' });
+		expect(screen.queryByRole('button', { name: 'Invite people' })).toBeNull();
 	});
 
 	it('explains a room that no longer exists', async () => {
@@ -489,5 +528,108 @@ describe('Add track screen', () => {
 
 		expect(screen.getByRole('header', { name: 'Add a track' })).toBeTruthy();
 		expect(await screen.findByRole('button', { name: 'Add One More Time by Daft Punk' })).toBeTruthy();
+	});
+});
+
+describe('Invite screen', () => {
+	let fetchMock: jest.Mock;
+	const MIA = { id: 'u2', displayName: 'Mia', avatarUrl: null };
+	const LEO = { id: 'u3', displayName: 'Leo', avatarUrl: null };
+
+	beforeEach(async () => {
+		await AsyncStorage.clear();
+		await tokenStorage.clear();
+		await tokenStorage.set('token', SERVER);
+		process.env.EXPO_PUBLIC_API_URL = SERVER;
+		fetchMock = mockFetch();
+		(useLocalSearchParams as jest.Mock).mockReturnValue({ roomId: 'r1' });
+	});
+
+	function serve(members: unknown[], invite = reply(201, {}), removal = reply(200, {})) {
+		fetchMock.mockImplementation(async (url: string, init: { method: string }) => {
+			const path = url.replace(/^https?:\/\/[^/]+/, '').split('?')[0];
+			if (path === '/users/me') return reply(200, ME);
+			if (path.startsWith('/rooms/r1/members/')) return removal;
+			if (path === '/users') return reply(200, [ME, MIA, LEO]);
+			if (path === '/rooms/r1/members') return init.method === 'POST' ? invite : reply(200, members);
+			return reply(404, { statusCode: 404, message: 'Not found' });
+		});
+	}
+
+	async function searchPeople(text: string) {
+		await fireEvent.changeText(await screen.findByLabelText('Search people'), text);
+	}
+
+	it('shows who is already invited', async () => {
+		serve([{ id: 'm1', roomId: 'r1', userId: 'u2', user: MIA }]);
+
+		await renderWithProviders(<InviteScreen />);
+
+		expect(await screen.findByText('Mia')).toBeTruthy();
+		expect(screen.getByText('Invited (1)')).toBeTruthy();
+	});
+
+	it('finds people, leaves out the owner, and invites the chosen one', async () => {
+		serve([]);
+		await renderWithProviders(<InviteScreen />);
+		await searchPeople('e');
+		await searchPeople('le');
+
+		await fireEvent.press(await screen.findByRole('button', { name: 'Invite Leo' }));
+
+		await waitFor(() => expect(screen.getByText('Leo invited')).toBeTruthy());
+		expect(screen.queryByRole('button', { name: 'Invite Ben' })).toBeNull();
+		const inviteCall = fetchMock.mock.calls.find(([, init]) => init.method === 'POST');
+		expect(JSON.parse(inviteCall[1].body)).toEqual({ userId: 'u3' });
+		expect(screen.getByRole('button', { name: 'Remove Leo' }).props.accessibilityState).toMatchObject({ selected: true });
+	});
+
+	it('marks people who are already invited', async () => {
+		serve([{ id: 'm1', roomId: 'r1', userId: 'u2', user: MIA }]);
+		await renderWithProviders(<InviteScreen />);
+
+		await searchPeople('mi');
+
+		expect((await screen.findByRole('button', { name: 'Remove Mia' })).props.accessibilityState).toMatchObject({
+			selected: true,
+		});
+	});
+
+	it('treats an invite the server already had as done', async () => {
+		serve([], reply(409, { statusCode: 409, message: 'User is already a member of this room' }));
+		await renderWithProviders(<InviteScreen />);
+		await searchPeople('le');
+
+		await fireEvent.press(await screen.findByRole('button', { name: 'Invite Leo' }));
+
+		expect(await screen.findByRole('button', { name: 'Remove Leo' })).toBeTruthy();
+		expect(screen.queryByText('Already done')).toBeNull();
+	});
+
+	it('takes an invite back with a second tap, and keeps the person listed', async () => {
+		serve([{ id: 'm1', roomId: 'r1', userId: 'u2', user: MIA }]);
+		await renderWithProviders(<InviteScreen />);
+
+		await fireEvent.press(await screen.findByRole('button', { name: 'Remove Mia' }));
+
+		await waitFor(() => expect(screen.getByText('Mia removed')).toBeTruthy());
+		expect(screen.getByText('Invited (0)')).toBeTruthy();
+		const removeCall = fetchMock.mock.calls.find(([, init]) => init.method === 'DELETE');
+		expect(removeCall[0]).toContain('/rooms/r1/members/u2');
+
+		await fireEvent.press(screen.getByRole('button', { name: 'Invite Mia' }));
+
+		await waitFor(() => expect(screen.getByText('Invited (1)')).toBeTruthy());
+		expect(fetchMock.mock.calls.filter(([, init]) => init.method === 'POST')).toHaveLength(1);
+	});
+
+	it('explains a refused invite', async () => {
+		serve([], reply(403, { statusCode: 403, message: 'Only the owner can manage members' }));
+		await renderWithProviders(<InviteScreen />);
+		await searchPeople('le');
+
+		await fireEvent.press(await screen.findByRole('button', { name: 'Invite Leo' }));
+
+		await waitFor(() => expect(screen.getByText('Only the owner can manage members.')).toBeTruthy());
 	});
 });
