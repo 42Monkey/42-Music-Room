@@ -129,19 +129,15 @@ export class TracksService {
 			throw new NotFoundException('Room not found');
 		}
 
-		if (room.kind === "PLAYLIST") {
-			return this.prisma.track.findMany({
-				where: { roomId },
-				orderBy: { position: 'asc'},
-			});
+		const where = { roomId, playedAt: null };
+
+		if (room.kind === 'PLAYLIST') {
+			return this.prisma.track.findMany({ where, orderBy: { position: 'asc' } });
 		}
 
 		return this.prisma.track.findMany({
-			where: { roomId },
-			orderBy: [
-				{ score: 'desc' },
-				{ addedAt: 'asc' },
-			],
+			where,
+			orderBy: [{ score: 'desc' }, { addedAt: 'asc' }],
 		});
 	}
 
@@ -214,17 +210,47 @@ export class TracksService {
 	}
 
 	async triggerNext(roomId: string, userId: string) {
-		const room = await this.prisma.room.findUnique({ where: { id: roomId }});
+		const room = await this.prisma.room.findUnique({ where: { id: roomId } });
 		if (!room) {
 			throw new NotFoundException('Room not found');
 		}
 
-		// subject is not precise about whom can trigger playback
+		// subject not clear about who can triggerNext
 		if (room.ownerId !== userId) {
 			throw new ForbiddenException('Only the room owner can trigger playback');
 		}
 
-		this.events.emit('room.playback.next', { roomId });
-		return { success: true };
+		const currentTrack = await this.prisma.$transaction(async (tx) => {
+			const nextTrack = await tx.track.findFirst({
+				where: {
+					roomId,
+					playedAt: null,
+					NOT: room.currentTrackId ? { id: room.currentTrackId } : undefined,
+				},
+				orderBy:
+					room.kind === 'PLAYLIST'
+						? [{ position: 'asc' }]
+						: [{ score: 'desc' }, { addedAt: 'asc' }],
+			});
+
+			if (room.currentTrackId) {
+				await tx.track.update({
+					where: { id: room.currentTrackId },
+					data: { playedAt: new Date() },
+				});
+			}
+
+			await tx.room.update({
+				where: { id: roomId },
+				data: { currentTrackId: nextTrack?.id ?? null },
+			});
+
+			return nextTrack;
+		});
+
+		this.events.emit('room.playback.next', { roomId, currentTrack: currentTrack ?? null });
+		await this.broadcastTracks(roomId);
+
+		return { currentTrack: currentTrack ?? null };
 	}
 }

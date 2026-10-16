@@ -29,16 +29,16 @@ export class RoomsGateway implements OnGatewayDisconnect {
 		@MessageBody() data: { roomId: string },
 	) {
 		const userId = client.user!.id;
-	
+
 		// validates room visibility against permissions
 		await this.roomsService.findOneVisibleTo(data.roomId, userId);
-	
+
 		client.join(this.channel(data.roomId));
 		this.logger.log(`User ${userId} joined room ${data.roomId}`);
 		await this.logAction(client, userId, 'joinRoom', data.roomId);
 		return { event: 'joinedRoom', data: { roomId: data.roomId } };
 	}
-	
+
 	// removes client from the specified room's live socket channel
 	@UseGuards(WsJwtGuard)
 	@SubscribeMessage('leaveRoom')
@@ -69,8 +69,8 @@ export class RoomsGateway implements OnGatewayDisconnect {
 	}
 
 	@OnEvent('room.playback.next')
-	handlePlaybackNext(payload: { roomId: string }) {
-		this.server.to(this.channel(payload.roomId)).emit('playback:next');
+	handlePlaybackNext(payload: { roomId: string; currentTrack: unknown }) {
+		this.server.to(this.channel(payload.roomId)).emit('playback:next', payload.currentTrack);
 	}
 
 	private async logAction(client: AuthedSocket, userId: string | null, action: string, roomId: string ) {
