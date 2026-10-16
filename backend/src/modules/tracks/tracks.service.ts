@@ -48,18 +48,13 @@ export class TracksService {
 		return track;
 	}
 
-	async removeTrack(roomId: string, trackId: string, userId: string) {
+	async removeTrack(roomId: string, trackId: string) {
 		const room = await this.prisma.room.findUnique({ where: { id: roomId } });
 		if (!room) {
 			throw new NotFoundException('Room not found');
 		}
 
 		await this.checkRoomTrack(roomId, trackId);
-
-		if (room.ownerId !== userId) {
-			throw new ForbiddenException('Only the room owner can remove tracks');
-		}
-
 		await this.prisma.track.delete({ where: { id: trackId } });
 		await this.broadcastTracks(roomId);
 	}

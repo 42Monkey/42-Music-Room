@@ -43,9 +43,8 @@ export class TracksController {
 	removeTrack(
 		@Param('roomId') roomId: string,
 		@Param('trackId') trackId: string,
-		@Req() req: Request & { user: AuthenticatedUser },
 	) {
-			return this.tracksService.removeTrack(roomId, trackId, req.user.id);
+			return this.tracksService.removeTrack(roomId, trackId);
 	}
 
 	@Post(':trackId/vote')
