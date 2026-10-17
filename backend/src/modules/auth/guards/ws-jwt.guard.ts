@@ -21,8 +21,6 @@ export class WsJwtGuard implements CanActivate {
 
 		// extracts the JWT token from auth
 		const token = client.handshake.auth?.token;
-
-		// rejects connection if no token is provided
 		if (!token) {
 			throw new UnauthorizedException('No token provided');
 		}
@@ -30,6 +28,9 @@ export class WsJwtGuard implements CanActivate {
 		try {
 			// verifies the token signature and expiration
 			const payload = await this.jwt.verifyAsync(token);
+			if (payload.type !== 'access') {
+				throw new UnauthorizedException('Invalid token type');
+			}
 
 			// checks if user is still exists in the database
 			const user = await this.authService.validateUser(payload);
