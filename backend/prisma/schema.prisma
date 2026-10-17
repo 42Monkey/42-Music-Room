@@ -40,25 +40,27 @@ enum FriendshipStatus {
 
 // V.1
 model User {
-  id                     String   @id @default(uuid())
-  email                  String?  @unique
-  passwordHash           String?
-  emailVerified          Boolean  @default(false)
-  emailVerificationToken String?  @unique
-  passwordResetToken     String?  @unique
-  passwordResetExpiresAt DateTime?
-  displayName            String
-  role                   Role     @default(USER)
+  id                        String   @id @default(uuid())
+  email                     String?  @unique
+  passwordHash              String?
+  emailVerified             Boolean  @default(false)
+  emailVerificationToken    String?  @unique
+  emailVerificationAttempts Int       @default(0)
+  passwordResetToken        String?  @unique
+  passwordResetExpiresAt    DateTime?
+  passwordResetAttempts     Int       @default(0)
+  displayName               String
+  role                      Role     @default(USER)
 
   // profile tiers
-  bio                    String?
-  avatarUrl              String?
-  location               String? // friends-only
-  phoneNumber            String? // friends-only
-  musicPreference        Json?   // public
+  bio                       String?
+  avatarUrl                 String?
+  location                  String? // friends-only
+  phoneNumber               String? // friends-only
+  musicPreference           Json?   // public
 
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @updatedAt
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
 
   googleAccount GoogleAccount?
   ownedRooms    Room[]         @relation("RoomOwner")
