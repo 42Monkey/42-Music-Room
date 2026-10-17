@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { envValidationSchema } from './config/env.validation';
 import { PrismaModule } from './prisma/prisma.module';
@@ -21,12 +21,16 @@ import { AllExceptionsFilter } from './common/filters/http-exception.filter';
 			isGlobal: true,
 			validationSchema: envValidationSchema,
 		}),
-		ThrottlerModule.forRoot([
-			{
-				ttl: 60000,
-				limit: 100,
-			},
-		]),
+		ThrottlerModule.forRootAsync({
+            imports: [ConfigModule],
+            inject: [ConfigService],
+            useFactory: (config: ConfigService) => [
+                {
+                    ttl: 60000,
+                    limit: config.get('LOAD_TEST') === 'true' ? 10000 : 100,
+                },
+            ],
+        }),
 		EventEmitterModule.forRoot(),
 		PrismaModule,
 		AuthModule,

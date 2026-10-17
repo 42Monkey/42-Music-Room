@@ -41,7 +41,8 @@ export class AuthController {
 		return this.authService.register(dto);
 	}
 
-	@Throttle({ default: { limit: 15, ttl: 60000 } })
+	// comment for load testing, uncomment for eval
+	// @Throttle({ default: { limit: 15, ttl: 60000 } })
 	@Post('login')
 	@HttpCode(HttpStatus.OK)
 	@ApiOperation({ summary: 'Log in an existing user' })
