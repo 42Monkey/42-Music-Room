@@ -5,8 +5,10 @@ import { Throttle} from '@nestjs/throttler'
 import { AuthService } from './auth.service'
 import { RegisterDto } from './dto/register.dto'
 import { LoginDto} from './dto/login.dto'
+import { EmailDto } from './dto/email.dto';
 import { RequestPasswordResetDto } from './dto/request-password-reset.dto'
 import { ResetPasswordDto } from './dto/reset-password.dto'
+import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { GoogleAuthGuard } from './guards/google-auth.guard'
 import type { Request,Response } from 'express';
@@ -59,12 +61,14 @@ export class AuthController {
 		return req.user;
 	}
 
+	@Throttle({ default: { limit: 10, ttl: 60000 } })
 	@Get('verify-email')
-	@ApiOperation({ summary: 'Verify email using a token' })
-	@ApiQuery({ name: 'token', required: true, description: 'Verification token' })
+	@ApiOperation({ summary: 'Verify email using a code' })
+	@ApiQuery({ name: 'email', required: true, description: 'Account email' })
+	@ApiQuery({ name: 'token', required: true, description: 'Verification code' })
 	@ApiResponse({ status: 200, description: 'Email verified' })
-	verifyEmail(@Query('token') token: string) {
-		return this.authService.verifyEmail(token);
+	verifyEmail(@Query() dto: EmailDto) {
+		return this.authService.verifyEmail(dto.email, dto.token);
 	}
 
 	@Throttle({ default: { limit: 5, ttl: 60000 } })
@@ -121,5 +125,15 @@ export class AuthController {
 		}
 		const tokens = await this.authService.googleLogin(req.user);
 		res.json(tokens);
+	}
+
+	@Throttle({ default: { limit: 5, ttl: 60000 } })
+	@Post('refresh')
+	@HttpCode(HttpStatus.OK)
+	@ApiOperation({ summary: 'Exchange refresh token for new token pair' })
+	@ApiBody({ type: RefreshTokenDto })
+	@ApiResponse({ status: 200, description: 'New refresh token issued' })
+	refresh(@Body() dto: RefreshTokenDto) {
+		return this.authService.refreshTokens(dto.refreshToken);
 	}
 }
