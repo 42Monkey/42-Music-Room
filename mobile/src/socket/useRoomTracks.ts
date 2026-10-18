@@ -59,5 +59,6 @@ export function useRoomTracks(roomId: string, { position = null, enabled = true 
 		};
 	}, [socket, roomId, reload, enabled]);
 
-	return { tracks, myVotes, loading, error, reload };
+	// setTracks: shows a change at once, until the server sends the real list
+	return { tracks, setTracks, myVotes, loading, error, reload };
 }

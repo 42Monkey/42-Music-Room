@@ -23,6 +23,17 @@ export const searchTracks = (roomId: string, text: string, position?: Position |
 export const addTrack = (roomId: string, deezerTrackId: string, position?: Position | null) =>
 	api.post<Track>(`/rooms/${roomId}/tracks${query(near(position))}`, { deezerTrackId });
 
+// Puts a playlist track right after another one (null: at the top)
+export const reorderTrack = (roomId: string, trackId: string, afterTrackId: string | null, position?: Position | null) =>
+	api.patch<unknown>(`/rooms/${roomId}/tracks/${trackId}/position${query(near(position))}`, { afterTrackId });
+
+export const removeTrack = (roomId: string, trackId: string, position?: Position | null) =>
+	api.delete<unknown>(`/rooms/${roomId}/tracks/${trackId}${query(near(position))}`);
+
+// Owner only: ends the current track and starts the next one for everyone
+export const nextTrack = (roomId: string) =>
+	api.post<{ currentTrack: Track | null; startedAt: string | null }>(`/rooms/${roomId}/tracks/next`);
+
 export const voteTrack = (roomId: string, trackId: string, position?: Position | null) =>
 	api.post<unknown>(`/rooms/${roomId}/tracks/${trackId}/vote${query(near(position))}`);
 

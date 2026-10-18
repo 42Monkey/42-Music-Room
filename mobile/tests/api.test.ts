@@ -2,7 +2,8 @@ import { api, configureApi } from '@/api/client';
 import { ApiError, NetworkError } from '@/api/errors';
 import { createRoom, getRoom } from '@/api/rooms';
 import { inviteMember, listMembers, removeMember, searchUsers } from '@/api/members';
-import { addTrack, listTracks, searchTracks, unvoteTrack, voteTrack } from '@/api/tracks';
+import { addTrack, listTracks, nextTrack, removeTrack, reorderTrack, searchTracks, unvoteTrack, voteTrack } from '@/api/tracks';
+import { freshPreview } from '@/lib/deezer';
 import { failure, mockFetch, reply } from './helpers';
 
 const onUnauthorized = jest.fn();
@@ -15,7 +16,7 @@ function sentHeaders(): Record<string, string> {
 beforeEach(() => {
 	fetchMock = mockFetch();
 	onUnauthorized.mockReset();
-	configureApi({ baseUrl: 'http://10.0.0.5:8080/', token: null, onUnauthorized, timeoutMs: 50 });
+	configureApi({ baseUrl: 'http://10.0.0.5:8080/', token: null, onUnauthorized, renew: null, timeoutMs: 50 });
 });
 
 describe('api client', () => {
@@ -184,6 +185,53 @@ describe('api client', () => {
 		expect(fetchMock.mock.calls[1][1].method).toBe('DELETE');
 	});
 
+	it('moves a track after another one, or to the top', async () => {
+		fetchMock.mockResolvedValue(reply(200, {}));
+
+		await reorderTrack('r1', 't3', 't1');
+		await reorderTrack('r1', 't3', null);
+
+		expect(fetchMock.mock.calls[0][0]).toBe('http://10.0.0.5:8080/rooms/r1/tracks/t3/position');
+		expect(fetchMock.mock.calls[0][1].method).toBe('PATCH');
+		expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ afterTrackId: 't1' });
+		expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({ afterTrackId: null });
+	});
+
+	it('removes a track', async () => {
+		fetchMock.mockResolvedValue(reply(200, {}));
+
+		await removeTrack('r1', 't3');
+
+		expect(fetchMock.mock.calls[0][0]).toBe('http://10.0.0.5:8080/rooms/r1/tracks/t3');
+		expect(fetchMock.mock.calls[0][1].method).toBe('DELETE');
+	});
+
+	it('moves the room to its next track', async () => {
+		fetchMock.mockResolvedValue(reply(200, { currentTrack: null, startedAt: null }));
+
+		await nextTrack('r1');
+
+		expect(fetchMock.mock.calls[0][0]).toBe('http://10.0.0.5:8080/rooms/r1/tracks/next');
+		expect(fetchMock.mock.calls[0][1].method).toBe('POST');
+	});
+
+	it('gets a fresh preview link and cover straight from Deezer', async () => {
+		fetchMock.mockResolvedValue(reply(200, { preview: 'https://cdn/p.mp3?exp=1', album: { cover_medium: 'https://cdn/c.jpg' } }));
+
+		const preview = await freshPreview('3135556');
+
+		expect(fetchMock.mock.calls[0][0]).toBe('https://api.deezer.com/track/3135556');
+		expect(preview).toEqual({ previewUrl: 'https://cdn/p.mp3?exp=1', coverUrl: 'https://cdn/c.jpg' });
+	});
+
+	it('fails when Deezer has no preview for a track', async () => {
+		fetchMock.mockResolvedValue(reply(200, { error: { type: 'DataException', message: 'no data' } }));
+
+		const error = await failure(freshPreview('0'));
+
+		expect(error).toBeInstanceOf(Error);
+	});
+
 	it('finds people by name or email', async () => {
 		fetchMock.mockResolvedValue(reply(200, []));
 
@@ -211,6 +259,45 @@ describe('api client', () => {
 
 		expect(fetchMock.mock.calls[0][0]).toBe('http://10.0.0.5:8080/rooms/r1/members/u2');
 		expect(fetchMock.mock.calls[0][1].method).toBe('DELETE');
+	});
+
+	it('renews an expired login once, then retries the call', async () => {
+		const renew = jest.fn(async () => {
+			configureApi({ token: 'fresh' });
+			return 'fresh';
+		});
+		configureApi({ token: 'expired', renew });
+		fetchMock.mockResolvedValueOnce(reply(401, { statusCode: 401, message: 'Unauthorized' }));
+		fetchMock.mockResolvedValueOnce(reply(200, { id: 'u1' }));
+
+		const me = await api.get<{ id: string }>('/users/me');
+
+		expect(me.id).toBe('u1');
+		expect(renew).toHaveBeenCalledTimes(1);
+		expect(fetchMock.mock.calls[1][1].headers.Authorization).toBe('Bearer fresh');
+		expect(onUnauthorized).not.toHaveBeenCalled();
+	});
+
+	it('ends the session when the login cannot be renewed', async () => {
+		configureApi({ token: 'expired', renew: async () => null });
+		fetchMock.mockResolvedValue(reply(401, { statusCode: 401, message: 'Unauthorized' }));
+
+		const error = await failure(api.get('/users/me'));
+
+		expect(error.status).toBe(401);
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		expect(onUnauthorized).toHaveBeenCalledTimes(1);
+	});
+
+	it('does not renew for the renewal call itself', async () => {
+		const renew = jest.fn(async () => 'fresh');
+		configureApi({ token: 'expired', renew });
+		fetchMock.mockResolvedValue(reply(401, { statusCode: 401, message: 'Invalid refresh token' }));
+
+		await failure(api.post('/auth/refresh', { refreshToken: 'old' }));
+
+		expect(renew).not.toHaveBeenCalled();
+		expect(onUnauthorized).not.toHaveBeenCalled();
 	});
 
 	it('refuses to call without a server address', async () => {

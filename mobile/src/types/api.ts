@@ -39,8 +39,12 @@ export type Room = {
 	windowStart: string | null;
 	windowEnd: string | null;
 	currentTrackId: string | null;
+	// When the current track started, shared by every phone in the room
+	currentTrackStartedAt: string | null;
 	createdAt: string;
 	updatedAt: string;
+	// Invited people (sent with a single room)
+	members?: { userId: string }[];
 };
 
 // Body of POST /rooms
@@ -77,6 +81,12 @@ export type Track = {
 	playedAt: string | null;
 	// Only in the list loaded by this user, not in live updates
 	votedByMe?: boolean;
+};
+
+// What a room plays: from POST /tracks/next and the live playback:next event
+export type Playback = {
+	track: Track | null;
+	startedAt: string | null;
 };
 
 // One Deezer search result (not in a room yet)

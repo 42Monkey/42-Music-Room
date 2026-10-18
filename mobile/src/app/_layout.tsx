@@ -1,6 +1,8 @@
+import { StyleSheet } from 'react-native';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { LaunchAnimation } from '@/components/LaunchAnimation';
 import { FeedbackProvider } from '@/feedback/FeedbackProvider';
@@ -16,20 +18,22 @@ SplashScreen.preventAutoHideAsync().catch(() => {});
 
 export default function RootLayout() {
 	return (
-		<SafeAreaProvider>
-			<SettingsProvider>
-				<FeedbackProvider>
-					<SessionProvider>
-						<SocketProvider>
-							<StatusBar style="dark" />
-							<RootNavigator />
-							<SessionWatcher />
-							<ConnectionWatcher />
-						</SocketProvider>
-					</SessionProvider>
-				</FeedbackProvider>
-			</SettingsProvider>
-		</SafeAreaProvider>
+		<GestureHandlerRootView style={styles.root}>
+			<SafeAreaProvider>
+				<SettingsProvider>
+					<FeedbackProvider>
+						<SessionProvider>
+							<SocketProvider>
+								<StatusBar style="dark" />
+								<RootNavigator />
+								<SessionWatcher />
+								<ConnectionWatcher />
+							</SocketProvider>
+						</SessionProvider>
+					</FeedbackProvider>
+				</SettingsProvider>
+			</SafeAreaProvider>
+		</GestureHandlerRootView>
 	);
 }
 
@@ -55,3 +59,9 @@ function RootNavigator() {
 		</>
 	);
 }
+
+const styles = StyleSheet.create({
+	root: {
+		flex: 1,
+	},
+});

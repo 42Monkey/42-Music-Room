@@ -20,12 +20,14 @@ type Props = {
 	onClose?: () => void;
 	back?: { label: string; onPress: () => void };
 	scroll?: boolean;
+	// Turned off while something on the page is being dragged
+	scrollEnabled?: boolean;
 	refreshControl?: ReactElement<RefreshControlProps>;
 	children: ReactNode;
 };
 
 // Page frame: safe area, big title, scrolling body
-export function Screen({ title, right, onClose, back, scroll = true, refreshControl, children }: Props) {
+export function Screen({ title, right, onClose, back, scroll = true, scrollEnabled = true, refreshControl, children }: Props) {
 	// Extra room at the bottom when the floating tab bar is on screen
 	const bottomSpace = { paddingBottom: space.huge + useContext(TabBarSpaceContext) };
 
@@ -85,6 +87,7 @@ export function Screen({ title, right, onClose, back, scroll = true, refreshCont
 						testID="screen-scroll"
 						contentContainerStyle={[styles.body, bottomSpace]}
 						keyboardShouldPersistTaps="handled"
+						scrollEnabled={scrollEnabled}
 						refreshControl={refreshControl}
 					>
 						{header}

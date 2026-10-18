@@ -5,6 +5,8 @@ type ApiConfig = {
 	baseUrl: string;
 	token: string | null;
 	onUnauthorized: () => void;
+	// New login when the current one expired (null: it could not be renewed)
+	renew: (() => Promise<string | null>) | null;
 	timeoutMs: number;
 };
 
@@ -12,13 +14,19 @@ let config: ApiConfig = {
 	baseUrl: '',
 	token: null,
 	onUnauthorized: () => {},
+	renew: null,
 	timeoutMs: 10000,
 };
+
+const RENEW_PATH = '/auth/refresh';
 
 // Called by the settings and session providers
 export function configureApi(changes: Partial<ApiConfig>) {
 	config = { ...config, ...changes };
 }
+
+// Login token in use right now (it changes when renewed)
+export const currentToken = () => config.token;
 
 function readServerMessage(text: string): string | string[] | null {
 	try {
@@ -30,7 +38,7 @@ function readServerMessage(text: string): string | string[] | null {
 }
 
 // One HTTP call to the backend, with token, log headers and timeout
-async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+async function request<T>(method: string, path: string, body?: unknown, retried = false): Promise<T> {
 	const baseUrl = config.baseUrl.replace(/\/+$/, '');
 	if (!baseUrl) throw new NetworkError('no-address', '');
 
@@ -58,8 +66,14 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 
 	const text = await response.text();
 	if (!response.ok) {
-		// Token refused: the session is over
-		if (response.status === 401 && token) config.onUnauthorized();
+		// Expired login: renew it once and retry, otherwise the session is over
+		if (response.status === 401 && token && path !== RENEW_PATH) {
+			if (!retried && config.renew) {
+				const fresh = await config.renew();
+				if (fresh) return request<T>(method, path, body, true);
+			}
+			config.onUnauthorized();
+		}
 		throw new ApiError(response.status, readServerMessage(text));
 	}
 	return (text ? JSON.parse(text) : null) as T;

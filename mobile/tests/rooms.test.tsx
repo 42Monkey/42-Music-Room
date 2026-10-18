@@ -1,7 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { fireEvent, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react-native';
 import * as Location from 'expo-location';
 import { router, useLocalSearchParams } from 'expo-router';
+import * as Audio from 'expo-audio';
 import AddTrackScreen from '@/app/(app)/rooms/add-track';
 import InviteScreen from '@/app/(app)/rooms/invite';
 import NewRoomScreen from '@/app/(app)/rooms/new';
@@ -9,7 +10,8 @@ import RoomScreen from '@/app/(app)/rooms/[id]';
 import { currentPosition, LocationError } from '@/lib/location';
 import { emptyRoomForm, validateRoomForm, type RoomForm } from '@/rooms/roomForm';
 import { tokenStorage } from '@/session/tokenStorage';
-import { mockFetch, renderWithProviders, reply, routeFetch, SERVER } from './helpers';
+import { SocketContext } from '@/socket/SocketProvider';
+import { FakeSocket, mockFetch, renderWithProviders, reply, routeFetch, SERVER } from './helpers';
 
 // Local times, so the tests pass in any time zone
 const TODAY = new Date(2026, 9, 14, 18, 0);
@@ -175,17 +177,49 @@ describe('Room screen', () => {
 		await waitFor(() => expect(screen.getByText('No tracks yet')).toBeTruthy());
 	});
 
-	it('sends the phone position in a place-and-time room', async () => {
+	it('shows a place-and-time room without asking where the phone is', async () => {
 		routeFetch(fetchMock, {
 			'/rooms/r1': reply(200, { ...VOTE_ROOM, accessPolicy: 'RESTRICTED' }),
 			'/rooms/r1/tracks': reply(200, VOTE_TRACKS),
 		});
+		(Location.getCurrentPositionAsync as jest.Mock).mockClear();
 
 		await renderWithProviders(<RoomScreen />);
 
 		await waitFor(() => expect(screen.getByText('Midnight City')).toBeTruthy());
 		const tracksCall = fetchMock.mock.calls.find(([url]) => url.includes('/tracks'));
-		expect(tracksCall[0]).toContain('?lat=13.7563&lng=100.5018');
+		expect(tracksCall[0]).not.toContain('lat=');
+		expect(Location.getCurrentPositionAsync).not.toHaveBeenCalled();
+	});
+
+	it('lets people who are not invited follow, but not vote', async () => {
+		await tokenStorage.set('token', SERVER);
+		routeFetch(fetchMock, {
+			'/users/me': reply(200, ME),
+			'/rooms/r1': reply(200, { ...VOTE_ROOM, accessPolicy: 'INVITE_ONLY', members: [] }),
+			'/rooms/r1/tracks': reply(200, VOTE_TRACKS),
+		});
+
+		await renderWithProviders(<RoomScreen />);
+
+		expect(await screen.findByText('Only invited people can vote here.')).toBeTruthy();
+		expect(screen.getByLabelText('12 votes')).toBeTruthy();
+		expect(screen.queryByRole('button', { name: 'Vote for Midnight City' })).toBeNull();
+		expect(screen.queryByRole('button', { name: 'Suggest a track' })).toBeNull();
+	});
+
+	it('lets invited people vote in an invite-only room', async () => {
+		await tokenStorage.set('token', SERVER);
+		routeFetch(fetchMock, {
+			'/users/me': reply(200, ME),
+			'/rooms/r1': reply(200, { ...VOTE_ROOM, accessPolicy: 'INVITE_ONLY', members: [{ roomId: 'r1', userId: 'me' }] }),
+			'/rooms/r1/tracks': reply(200, VOTE_TRACKS),
+		});
+
+		await renderWithProviders(<RoomScreen />);
+
+		expect(await screen.findByRole('button', { name: 'Vote for Midnight City' })).toBeTruthy();
+		expect(screen.queryByText('Only invited people can vote here.')).toBeNull();
 	});
 
 	it('explains why the user cannot take part', async () => {
@@ -332,6 +366,107 @@ describe('Room screen', () => {
 		await renderWithProviders(<RoomScreen />);
 		await screen.findByRole('button', { name: 'Suggest a track' });
 		expect(screen.queryByRole('button', { name: 'Invite people' })).toBeNull();
+	});
+
+	describe('playlist', () => {
+		const PLAYLIST_ROOM = { ...VOTE_ROOM, kind: 'PLAYLIST' };
+		const PLAYLIST = [
+			{ id: 't1', title: 'Holocene', artist: 'Bon Iver', score: 0, position: 'a' },
+			{ id: 't2', title: 'Skinny Love', artist: 'Bon Iver', score: 0, position: 'b' },
+			{ id: 't3', title: 'Re: Stacks', artist: 'Bon Iver', score: 0, position: 'c' },
+		];
+		const order = () => screen.getAllByLabelText(/^Move /).map((handle) => handle.props.accessibilityLabel);
+		const action = (label: string, actionName: string) =>
+			fireEvent(screen.getByLabelText(label), 'accessibilityAction', { nativeEvent: { actionName } });
+
+		function serve(routes: Record<string, unknown> = {}, room: object = PLAYLIST_ROOM) {
+			routeFetch(fetchMock, {
+				'/users/me': reply(200, ME),
+				'/rooms/r1': reply(200, room),
+				'/rooms/r1/tracks': reply(200, PLAYLIST),
+				...routes,
+			});
+		}
+
+		it('moves a track down and tells the server where it goes', async () => {
+			// Fake server that keeps the new order, like the real one
+			let moved = false;
+			fetchMock.mockImplementation(async (url: string, init: { method: string }) => {
+				const path = url.replace(/^https?:\/\/[^/]+/, '').split('?')[0];
+				if (path === '/rooms/r1') return reply(200, PLAYLIST_ROOM);
+				if (path === '/rooms/r1/tracks/t1/position') {
+					moved = true;
+					return reply(200, {});
+				}
+				return reply(200, moved ? [PLAYLIST[1], PLAYLIST[0], PLAYLIST[2]] : PLAYLIST);
+			});
+			await renderWithProviders(<RoomScreen />);
+			await screen.findByLabelText('Move Holocene');
+
+			await action('Move Holocene', 'moveDown');
+
+			expect(order()).toEqual(['Move Skinny Love', 'Move Holocene', 'Move Re: Stacks']);
+			await waitFor(() => expect(fetchMock.mock.calls.some(([, init]) => init.method === 'PATCH')).toBe(true));
+			const moveCall = fetchMock.mock.calls.find(([, init]) => init.method === 'PATCH');
+			expect(moveCall[0]).toContain('/rooms/r1/tracks/t1/position');
+			expect(JSON.parse(moveCall[1].body)).toEqual({ afterTrackId: 't2' });
+		});
+
+		it('moves a track to the top', async () => {
+			serve({ '/rooms/r1/tracks/t2/position': reply(200, {}) });
+			await renderWithProviders(<RoomScreen />);
+			await screen.findByLabelText('Move Skinny Love');
+
+			await action('Move Skinny Love', 'moveUp');
+
+			await waitFor(() => expect(fetchMock.mock.calls.some(([, init]) => init.method === 'PATCH')).toBe(true));
+			const moveCall = fetchMock.mock.calls.find(([, init]) => init.method === 'PATCH');
+			expect(JSON.parse(moveCall[1].body)).toEqual({ afterTrackId: null });
+		});
+
+		it('puts the list back when a move is refused', async () => {
+			serve({
+				'/rooms/r1/tracks/t1/position': reply(403, { statusCode: 403, message: 'This room is invite-only' }),
+			});
+			await renderWithProviders(<RoomScreen />);
+			await screen.findByLabelText('Move Holocene');
+
+			await action('Move Holocene', 'moveDown');
+
+			await waitFor(() => expect(screen.getByText('Invite only')).toBeTruthy());
+			await waitFor(() => expect(order()).toEqual(['Move Holocene', 'Move Skinny Love', 'Move Re: Stacks']));
+		});
+
+		it('lets anyone who can edit remove a track, after confirming', async () => {
+			serve({ '/rooms/r1/tracks/t2': reply(200, {}) });
+			await renderWithProviders(<RoomScreen />);
+
+			await fireEvent.press(await screen.findByRole('button', { name: 'Remove Skinny Love' }));
+			await fireEvent.press(screen.getByRole('button', { name: 'Remove' }));
+
+			await waitFor(() => expect(screen.getByText('Track removed')).toBeTruthy());
+			const removeCall = fetchMock.mock.calls.find(([, init]) => init.method === 'DELETE');
+			expect(removeCall[0]).toContain('/rooms/r1/tracks/t2');
+		});
+
+		it('lets people who are not invited follow the playlist, but not edit it', async () => {
+			await tokenStorage.set('token', SERVER);
+			serve({}, { ...PLAYLIST_ROOM, accessPolicy: 'INVITE_ONLY', members: [] });
+			const view = await renderWithProviders(<RoomScreen />);
+
+			expect(await screen.findByText('Only invited people can edit this playlist.')).toBeTruthy();
+			expect(screen.getByText('Holocene')).toBeTruthy();
+			expect(screen.queryByLabelText(/^Move /)).toBeNull();
+			expect(screen.queryByRole('button', { name: 'Remove Holocene' })).toBeNull();
+			expect(screen.queryByRole('button', { name: 'Add a track' })).toBeNull();
+			await view.unmount();
+
+			routeFetch(fetchMock, { '/rooms/r1': reply(200, VOTE_ROOM), '/rooms/r1/tracks': reply(200, VOTE_TRACKS) });
+			await renderWithProviders(<RoomScreen />);
+			await screen.findByText('Midnight City');
+			expect(screen.queryByLabelText(/^Move /)).toBeNull();
+			expect(screen.queryByRole('button', { name: 'Remove Midnight City' })).toBeNull();
+		});
 	});
 
 	it('explains a room that no longer exists', async () => {
@@ -510,14 +645,21 @@ describe('Add track screen', () => {
 		await waitFor(() => expect(screen.getByText('Music service unavailable')).toBeTruthy());
 	});
 
-	it('sends the position of a place-and-time room', async () => {
-		(useLocalSearchParams as jest.Mock).mockReturnValue({ roomId: 'r1', kind: 'VOTE', lat: '13.75', lng: '100.5' });
-		routeFetch(fetchMock, { '/rooms/r1/tracks/search': reply(200, RESULTS) });
-
+	it('checks where the phone is when adding to a place-and-time room', async () => {
+		(useLocalSearchParams as jest.Mock).mockReturnValue({ roomId: 'r1', kind: 'VOTE', needsPosition: '1' });
+		routeFetch(fetchMock, {
+			'/rooms/r1/tracks/search': reply(200, RESULTS),
+			'/rooms/r1/tracks': reply(201, { id: 't9' }),
+		});
 		await search('daft punk');
 
-		await waitFor(() => expect(fetchMock).toHaveBeenCalled());
-		expect(fetchMock.mock.calls[0][0]).toContain('&lat=13.75&lng=100.5');
+		await fireEvent.press(await screen.findByRole('button', { name: 'Suggest One More Time by Daft Punk' }));
+
+		await waitFor(() => expect(router.back).toHaveBeenCalled());
+		const searchCall = fetchMock.mock.calls.find(([url]) => url.includes('/search'));
+		expect(searchCall[0]).not.toContain('lat=');
+		const addCall = fetchMock.mock.calls.find(([, init]) => init.method === 'POST');
+		expect(addCall[0]).toContain('/rooms/r1/tracks?lat=13.7563&lng=100.5018');
 	});
 
 	it('adds to a playlist with playlist words', async () => {
@@ -631,5 +773,122 @@ describe('Invite screen', () => {
 		await fireEvent.press(await screen.findByRole('button', { name: 'Invite Leo' }));
 
 		await waitFor(() => expect(screen.getByText('Only the owner can manage members.')).toBeTruthy());
+	});
+});
+
+describe('Now playing', () => {
+	let fetchMock: jest.Mock;
+	let socket: FakeSocket;
+	const player = (Audio as unknown as { testPlayer: Record<string, jest.Mock> }).testPlayer;
+	const TRACKS = [
+		{ id: 't1', providerId: '111', title: 'Midnight City', artist: 'M83', score: 12, position: null },
+		{ id: 't2', providerId: '222', title: 'Electric Feel', artist: 'MGMT', score: 9, position: null },
+	];
+	const DEEZER = { preview: 'https://cdn/fresh.mp3', album: { cover_medium: 'https://cdn/cover.jpg' } };
+	const secondsAgo = (seconds: number) => new Date(Date.now() - seconds * 1000).toISOString();
+
+	beforeEach(async () => {
+		await AsyncStorage.clear();
+		await tokenStorage.clear();
+		process.env.EXPO_PUBLIC_API_URL = SERVER;
+		fetchMock = mockFetch();
+		socket = new FakeSocket();
+		socket.connected = true;
+		Object.values(player).forEach((fn) => fn.mockClear());
+		(useLocalSearchParams as jest.Mock).mockReturnValue({ id: 'r1' });
+	});
+
+	function serve(room: object, routes: Record<string, unknown> = {}) {
+		routeFetch(fetchMock, {
+			'/users/me': reply(200, ME),
+			'/rooms/r1': reply(200, { ...VOTE_ROOM, currentTrackId: null, currentTrackStartedAt: null, ...room }),
+			'/rooms/r1/tracks': reply(200, TRACKS),
+			'/track/111': reply(200, DEEZER),
+			'/track/222': reply(200, { ...DEEZER, preview: 'https://cdn/fresh-2.mp3' }),
+			...routes,
+		});
+	}
+
+	const renderRoom = () =>
+		renderWithProviders(
+			<SocketContext.Provider value={{ socket: socket as never, connected: true }}>
+				<RoomScreen />
+			</SocketContext.Provider>,
+		);
+
+	it('plays the current track on this phone, and keeps it out of the queue', async () => {
+		serve({ currentTrackId: 't1', currentTrackStartedAt: secondsAgo(10) });
+
+		await renderRoom();
+
+		await waitFor(() => expect(player.replace).toHaveBeenCalledWith({ uri: 'https://cdn/fresh.mp3' }));
+		expect(player.play).toHaveBeenCalled();
+		expect(screen.getByLabelText('Now playing: Midnight City by M83')).toBeTruthy();
+		expect(screen.queryByRole('button', { name: 'Vote for Midnight City' })).toBeNull();
+		expect(screen.getByRole('button', { name: 'Vote for Electric Feel' })).toBeTruthy();
+	});
+
+	it('starts the new track on every phone when the room moves on', async () => {
+		serve({});
+		await renderRoom();
+		await screen.findByText('Nothing playing yet. The owner starts the music.');
+
+		await act(() => socket.serverSends('playback:next', { track: TRACKS[1], startedAt: secondsAgo(0) }));
+
+		await waitFor(() => expect(player.replace).toHaveBeenCalledWith({ uri: 'https://cdn/fresh-2.mp3' }));
+		expect(screen.getByLabelText('Now playing: Electric Feel by MGMT')).toBeTruthy();
+	});
+
+	it('lets the owner start the music, then move on', async () => {
+		await tokenStorage.set('token', SERVER);
+		let playing: object | null = null;
+		serve({ ownerId: 'me' }, {});
+		const base = fetchMock.getMockImplementation()!;
+		fetchMock.mockImplementation(async (url: string, init: { method: string }) => {
+			if (url.includes('/tracks/next')) {
+				playing = playing ? { currentTrack: TRACKS[1], startedAt: secondsAgo(0) } : { currentTrack: TRACKS[0], startedAt: secondsAgo(0) };
+				return reply(200, playing);
+			}
+			return base(url, init);
+		});
+		await renderRoom();
+
+		await fireEvent.press(await screen.findByRole('button', { name: 'Start playing' }));
+		expect(await screen.findByLabelText('Now playing: Midnight City by M83')).toBeTruthy();
+
+		await fireEvent.press(screen.getByRole('button', { name: 'Next track' }));
+		expect(await screen.findByLabelText('Now playing: Electric Feel by MGMT')).toBeTruthy();
+		expect(fetchMock.mock.calls.filter(([url]) => url.includes('/tracks/next'))).toHaveLength(2);
+	});
+
+	it('leaves the music controls to the owner', async () => {
+		serve({ currentTrackId: 't1', currentTrackStartedAt: secondsAgo(5) });
+
+		await renderRoom();
+
+		await screen.findByLabelText('Now playing: Midnight City by M83');
+		expect(screen.queryByRole('button', { name: 'Next track' })).toBeNull();
+	});
+
+	it('mutes and unmutes this phone only', async () => {
+		serve({ currentTrackId: 't1', currentTrackStartedAt: secondsAgo(5) });
+		await renderRoom();
+		await waitFor(() => expect(player.play).toHaveBeenCalled());
+
+		await fireEvent.press(screen.getByRole('button', { name: 'Mute' }));
+		expect(player.pause).toHaveBeenCalled();
+
+		player.play.mockClear();
+		await fireEvent.press(screen.getByRole('button', { name: 'Listen' }));
+		expect(player.play).toHaveBeenCalled();
+		expect(fetchMock.mock.calls.some(([url]) => url.includes('/tracks/next'))).toBe(false);
+	});
+
+	it('says when a track cannot be played', async () => {
+		serve({ currentTrackId: 't1', currentTrackStartedAt: secondsAgo(5) }, { '/track/111': reply(500, {}) });
+
+		await renderRoom();
+
+		expect(await screen.findByText("This track can't be played right now.")).toBeTruthy();
 	});
 });

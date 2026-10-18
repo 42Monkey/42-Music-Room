@@ -57,6 +57,20 @@ jest.mock('@react-native-community/datetimepicker', () => {
 	};
 });
 
+// Audio player stand-in: records play, pause, load and seek
+jest.mock('expo-audio', () => {
+	const player = { play: jest.fn(), pause: jest.fn(), replace: jest.fn(), seekTo: jest.fn(async () => {}), remove: jest.fn() };
+	return {
+		useAudioPlayer: () => player,
+		useAudioPlayerStatus: () => ({ isLoaded: false, playing: false, currentTime: 0, duration: 0, didJustFinish: false }),
+		setAudioModeAsync: jest.fn(async () => {}),
+		testPlayer: player,
+	};
+});
+
+// Gestures: the library's own stand-ins
+require('react-native-gesture-handler/jestSetup');
+
 // Animations run instantly in tests (Reanimated and its worklets engine)
 jest.mock('react-native-worklets', () => require('react-native-worklets/lib/module/mock'));
 jest.mock('react-native-reanimated', () => ({

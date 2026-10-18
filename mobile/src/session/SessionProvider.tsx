@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { api, configureApi } from '@/api/client';
+import { api, configureApi, currentToken } from '@/api/client';
 import { ApiError } from '@/api/errors';
 import { useSettings } from '@/settings/SettingsProvider';
 import type { Tokens, User } from '@/types/api';
@@ -57,7 +57,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 		configureApi({ token: saved.token });
 		try {
 			setUser(await api.get<User>('/users/me'));
-			setToken(saved.token);
+			// The saved token may have been renewed on the way
+			setToken(currentToken());
 			setStatus('signedIn');
 		} catch (error) {
 			configureApi({ token: null });
@@ -73,14 +74,36 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 		if (ready) restore();
 	}, [ready, serverUrl, restore]);
 
-	// Token refused in the middle of a session
+	// Expired login: one renewal at a time, shared by every call that hit it
+	const renewing = useRef<Promise<string | null> | null>(null);
+	const renew = useCallback(() => {
+		renewing.current ??= (async () => {
+			const saved = await tokenStorage.get();
+			if (!saved?.refreshToken || saved.serverUrl !== serverUrl) return null;
+			try {
+				const tokens = await api.post<Tokens>('/auth/refresh', { refreshToken: saved.refreshToken });
+				await tokenStorage.set(tokens.accessToken, serverUrl, tokens.refreshToken);
+				configureApi({ token: tokens.accessToken });
+				setToken(tokens.accessToken);
+				return tokens.accessToken;
+			} catch {
+				return null;
+			}
+		})().finally(() => {
+			renewing.current = null;
+		});
+		return renewing.current;
+	}, [serverUrl]);
+
+	// Login refused in the middle of a session, even after a renewal
 	useEffect(() => {
 		configureApi({
+			renew,
 			onUnauthorized: () => {
 				if (statusRef.current === 'signedIn') endSession(true);
 			},
 		});
-	}, [endSession]);
+	}, [endSession, renew]);
 
 	// Called by the login screens with the backend's tokens
 	const signIn = useCallback(async (tokens: Tokens) => {
@@ -92,7 +115,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 			configureApi({ token: null });
 			throw error;
 		}
-		await tokenStorage.set(tokens.accessToken, serverUrl);
+		await tokenStorage.set(tokens.accessToken, serverUrl, tokens.refreshToken);
 		setUser(me);
 		setToken(tokens.accessToken);
 		setExpired(false);

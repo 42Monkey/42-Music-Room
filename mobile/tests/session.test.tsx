@@ -91,7 +91,53 @@ describe('SessionProvider', () => {
 
 		expect(result.current.status).toBe('signedIn');
 		expect(result.current.user?.id).toBe('u1');
-		expect(await tokenStorage.get()).toEqual({ token: 'new-token', serverUrl: SERVER });
+		expect(await tokenStorage.get()).toEqual({ token: 'new-token', refreshToken: 'r', serverUrl: SERVER });
+	});
+
+	it('renews an expired login at startup and stays logged in', async () => {
+		await tokenStorage.set('expired', SERVER, 'renewal-1');
+		fetchMock.mockImplementation(async (url: string, init: { headers: Record<string, string> }) => {
+			if (url.endsWith('/auth/refresh')) return reply(200, { accessToken: 'fresh', refreshToken: 'renewal-2' });
+			return init.headers.Authorization === 'Bearer fresh' ? reply(200, ME) : reply(401, { statusCode: 401, message: 'Unauthorized' });
+		});
+
+		const { result } = await renderSession();
+
+		expect(result.current.status).toBe('signedIn');
+		expect(result.current.token).toBe('fresh');
+		expect(await tokenStorage.get()).toEqual({ token: 'fresh', refreshToken: 'renewal-2', serverUrl: SERVER });
+		const renewCall = fetchMock.mock.calls.find(([url]) => url.endsWith('/auth/refresh'));
+		expect(JSON.parse(renewCall[1].body)).toEqual({ refreshToken: 'renewal-1' });
+	});
+
+	it('logs out when the renewal key is refused too', async () => {
+		await tokenStorage.set('expired', SERVER, 'old-renewal');
+		fetchMock.mockResolvedValue(reply(401, { statusCode: 401, message: 'Unauthorized' }));
+
+		const { result } = await renderSession();
+
+		expect(result.current.status).toBe('signedOut');
+		expect(await tokenStorage.get()).toBeNull();
+	});
+
+	it('renews once when several calls hit the expired login together', async () => {
+		await tokenStorage.set('valid', SERVER, 'renewal-1');
+		let renewals = 0;
+		let expired = false;
+		fetchMock.mockImplementation(async (url: string, init: { headers: Record<string, string> }) => {
+			if (url.endsWith('/auth/refresh')) {
+				renewals += 1;
+				return reply(200, { accessToken: 'fresh', refreshToken: 'renewal-2' });
+			}
+			if (expired && init.headers.Authorization !== 'Bearer fresh') return reply(401, { statusCode: 401, message: 'Unauthorized' });
+			return reply(200, ME);
+		});
+		await renderSession();
+		expired = true;
+
+		await act(() => Promise.all([api.get('/users/me'), api.get('/rooms'), api.get('/friends')]));
+
+		expect(renewals).toBe(1);
 	});
 
 	it('signs out and forgets the token', async () => {

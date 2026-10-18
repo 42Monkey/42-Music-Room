@@ -14,7 +14,7 @@ import Animated, {
 import { Ionicons } from '@expo/vector-icons';
 import { ApiError } from '@/api/errors';
 import { getRoom } from '@/api/rooms';
-import { unvoteTrack, voteTrack } from '@/api/tracks';
+import { removeTrack, reorderTrack, unvoteTrack, voteTrack } from '@/api/tracks';
 import { Button } from '@/components/Button';
 import { OnAirBadge } from '@/components/OnAirBadge';
 import { Screen } from '@/components/Screen';
@@ -22,12 +22,17 @@ import { Tag } from '@/components/Tag';
 import { ErrorState } from '@/feedback/ErrorState';
 import { useFeedback } from '@/feedback/FeedbackProvider';
 import { currentPosition } from '@/lib/location';
+import { NowPlaying } from '@/player/NowPlaying';
+import { useNowPlaying } from '@/player/useNowPlaying';
+import { PlaylistEditor } from '@/rooms/PlaylistEditor';
+import { canTakePart } from '@/rooms/roomAccess';
+import { moveItem, placeAfter } from '@/rooms/playlistOrder';
 import { kindLabel, ruleLabel } from '@/rooms/roomText';
 import { useSession } from '@/session/SessionProvider';
 import { useRoomTracks } from '@/socket/useRoomTracks';
 import { useSocket } from '@/socket/SocketProvider';
 import { colors, radius, space, type } from '@/theme';
-import type { Position, Room, Track } from '@/types/api';
+import type { Room, Track } from '@/types/api';
 
 const EASE_OUT = Easing.bezier(0.23, 1, 0.32, 1);
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
@@ -48,11 +53,9 @@ export default function RoomScreen() {
 	const roomId = String(id);
 	const { user } = useSession();
 	const { connected } = useSocket();
-	const { showError } = useFeedback();
+	const { toast, dialog, showError } = useFeedback();
 	const [room, setRoom] = useState<Room | null>(null);
 	const [roomError, setRoomError] = useState<unknown>(null);
-	const [position, setPosition] = useState<Position | null>(null);
-	const [positionError, setPositionError] = useState<unknown>(null);
 
 	const loadRoom = useCallback(async () => {
 		setRoomError(null);
@@ -67,24 +70,13 @@ export default function RoomScreen() {
 		loadRoom();
 	}, [loadRoom]);
 
-	// Place-and-time rooms check where the phone is (the owner is exempt)
+	// Anyone who can see a room sees its list; place and time only count when acting (owner exempt)
 	const needsPosition = !!room && room.accessPolicy === 'RESTRICTED' && room.ownerId !== user?.id;
-
-	const locate = useCallback(async () => {
-		setPositionError(null);
-		try {
-			setPosition(await currentPosition());
-		} catch (error) {
-			setPositionError(error);
-		}
-	}, []);
-
-	useEffect(() => {
-		if (needsPosition) locate();
-	}, [needsPosition, locate]);
-
-	const ready = !!room && (!needsPosition || !!position);
-	const { tracks, myVotes, loading, error, reload } = useRoomTracks(roomId, { position, enabled: ready });
+	const { tracks, setTracks, myVotes, loading, error, reload } = useRoomTracks(roomId, { enabled: !!room });
+	const { now, show } = useNowPlaying(room, loadRoom);
+	// The playing track sits in the player card, the list shows what comes next
+	const queue = tracks.filter((track) => track.id !== now.trackId);
+	const [dragging, setDragging] = useState(false);
 	const back = { label: 'Rooms', onPress: () => router.back() };
 
 	// User's votes: from the server on each load, then changed at once on tap
@@ -117,14 +109,46 @@ export default function RoomScreen() {
 		}
 	};
 
-	// Search sheet, with the position for place-and-time rooms
+	// Search sheet; place-and-time rooms check the phone's position when adding
 	const openSearch = (kind: Room['kind']) => {
 		const params: Record<string, string> = { roomId, kind };
-		if (position) {
-			params.lat = String(position.lat);
-			params.lng = String(position.lng);
-		}
+		if (needsPosition) params.needsPosition = '1';
 		router.push({ pathname: '/rooms/add-track', params });
+	};
+
+	// Playlist move: shown at once, then the server sends the final order to everyone
+	const move = async (trackId: string, to: number) => {
+		const from = queue.findIndex((track) => track.id === trackId);
+		if (from < 0 || from === to) return;
+		const shown = moveItem(queue, from, to);
+		const afterTrackId = to === 0 ? null : shown[to - 1].id;
+		setTracks(placeAfter(tracks, trackId, afterTrackId));
+		try {
+			await reorderTrack(roomId, trackId, afterTrackId);
+			if (!connected) reload();
+		} catch (err) {
+			showError(err);
+			reload();
+		}
+	};
+
+	// Owner only (backend rule), after a confirmation since it can't be undone
+	const confirmRemove = (track: Track) =>
+		dialog({
+			title: `Remove ${track.title}?`,
+			message: 'It will be removed from the playlist for everyone.',
+			primary: { label: 'Remove', onPress: () => remove(track) },
+			secondary: { label: 'Cancel' },
+		});
+
+	const remove = async (track: Track) => {
+		try {
+			await removeTrack(roomId, track.id);
+			toast('Track removed', 'success');
+			if (!connected) reload();
+		} catch (err) {
+			showError(err);
+		}
 	};
 
 	if (roomError) {
@@ -144,16 +168,25 @@ export default function RoomScreen() {
 	}
 
 	const isVote = room.kind === 'VOTE';
+	const canAct = canTakePart(room, user?.id);
 
 	return (
-		<Screen back={back} title={room.name} right={<OnAirBadge on={connected} />}>
+		<Screen back={back} title={room.name} right={<OnAirBadge on={connected} />} scrollEnabled={!dragging}>
 			<View style={styles.tags}>
 				<Tag label={kindLabel(room)} tone="accent" />
 				<Tag label={ruleLabel(room)} />
 				{room.visibility === 'PRIVATE' && <Tag label="Private" icon="lock-closed" />}
 			</View>
 			{room.description ? <Text style={styles.description}>{room.description}</Text> : null}
-			{ready && (
+			{!canAct && (
+				<View style={styles.notice}>
+					<Ionicons name="eye-outline" size={18} color={colors.muted} />
+					<Text style={styles.noticeText}>
+						{isVote ? 'Only invited people can vote here.' : 'Only invited people can edit this playlist.'}
+					</Text>
+				</View>
+			)}
+			{canAct && (
 				<Button
 					label={isVote ? 'Suggest a track' : 'Add a track'}
 					icon="add"
@@ -173,47 +206,60 @@ export default function RoomScreen() {
 
 			<View style={styles.sectionHeader}>
 				<Text style={styles.sectionTitle} accessibilityRole="header">
+					Now playing
+				</Text>
+			</View>
+			<NowPlaying roomId={roomId} now={now} tracks={tracks} isOwner={room.ownerId === user?.id} onPlaying={show} />
+
+			<View style={styles.sectionHeader}>
+				<Text style={styles.sectionTitle} accessibilityRole="header">
 					{isVote ? 'Up next' : 'Tracks'}
 				</Text>
 				{isVote && <Text style={styles.sectionHint}>Most votes play first</Text>}
 			</View>
 
-			{positionError ? (
-				<ErrorState error={positionError} onRetry={locate} />
-			) : error ? (
+			{error ? (
 				<ErrorState error={error} onRetry={reload} />
 			) : loading ? (
 				<ActivityIndicator color={colors.accent} style={styles.loading} />
-			) : tracks.length === 0 ? (
+			) : queue.length === 0 ? (
 				<View style={styles.empty}>
-					<Text style={styles.emptyTitle}>No tracks yet</Text>
+					<Text style={styles.emptyTitle}>{now.trackId ? 'Nothing up next' : 'No tracks yet'}</Text>
 					<Text style={styles.emptyText}>
 						{isVote ? 'Suggest the first one. The most voted track plays first.' : 'Add the first track to this playlist.'}
 					</Text>
 				</View>
-			) : (
+			) : isVote ? (
 				<View style={styles.list}>
-					{tracks.map((track, index) => (
+					{queue.map((track, index) => (
 						<TrackRow
 							key={track.id}
 							track={track}
 							index={index}
-							isVote={isVote}
 							voted={voted.has(track.id)}
+							canVote={canAct}
 							onVote={() => toggleVote(track)}
-							last={index === tracks.length - 1}
+							last={index === queue.length - 1}
 						/>
 					))}
 				</View>
+			) : (
+				<PlaylistEditor
+					tracks={queue}
+					canEdit={canAct}
+					onMove={move}
+					onRemove={confirmRemove}
+					onDragChange={setDragging}
+				/>
 			)}
 		</Screen>
 	);
 }
 
-type RowProps = { track: Track; index: number; isVote: boolean; voted: boolean; onVote: () => void; last: boolean };
+type RowProps = { track: Track; index: number; voted: boolean; canVote: boolean; onVote: () => void; last: boolean };
 
-// One track: fades in on load, glides when the order changes
-function TrackRow({ track, index, isVote, voted, onVote, last }: RowProps) {
+// One voted track: fades in on load, glides when the order changes
+function TrackRow({ track, index, voted, canVote, onVote, last }: RowProps) {
 	return (
 		<Animated.View
 			entering={FadeInDown.duration(250).delay(Math.min(index, 8) * 40)}
@@ -229,7 +275,14 @@ function TrackRow({ track, index, isVote, voted, onVote, last }: RowProps) {
 					{track.artist}
 				</Text>
 			</View>
-			{isVote && <VoteButton title={track.title} score={track.score} voted={voted} onPress={onVote} />}
+			{canVote ? (
+				<VoteButton title={track.title} score={track.score} voted={voted} onPress={onVote} />
+			) : (
+				<View accessible accessibilityLabel={`${track.score} ${track.score === 1 ? 'vote' : 'votes'}`} style={styles.votes}>
+					<Ionicons name="arrow-up" size={14} color={colors.muted} />
+					<Text style={[styles.voteCount, styles.voteCountMuted]}>{track.score}</Text>
+				</View>
+			)}
 		</Animated.View>
 	);
 }
@@ -291,6 +344,17 @@ const styles = StyleSheet.create({
 	},
 	addButton: {
 		marginTop: space.lg,
+	},
+	notice: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		gap: space.sm,
+		marginTop: space.lg,
+	},
+	noticeText: {
+		...type.callout,
+		color: colors.muted,
+		flex: 1,
 	},
 	inviteButton: {
 		marginTop: space.sm,
@@ -370,6 +434,9 @@ const styles = StyleSheet.create({
 		alignItems: 'center',
 		justifyContent: 'center',
 		gap: space.xs,
+	},
+	voteCountMuted: {
+		color: colors.muted,
 	},
 	voteCount: {
 		...type.callout,

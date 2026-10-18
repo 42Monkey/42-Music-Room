@@ -8,12 +8,13 @@ import { Screen } from '@/components/Screen';
 import { TextField } from '@/components/TextField';
 import { ErrorState } from '@/feedback/ErrorState';
 import { useFeedback } from '@/feedback/FeedbackProvider';
+import { currentPosition } from '@/lib/location';
 import { useSearch } from '@/lib/useSearch';
 import { formatDuration } from '@/rooms/roomText';
 import { colors, radius, space, type } from '@/theme';
 import type { TrackResult } from '@/types/api';
 
-type Params = { roomId: string; kind?: string; lat?: string; lng?: string };
+type Params = { roomId: string; kind?: string; needsPosition?: string };
 
 // Deezer search, opened as a sheet from a room: tap a result to add it
 export default function AddTrackScreen() {
@@ -21,12 +22,12 @@ export default function AddTrackScreen() {
 	const roomId = String(params.roomId);
 	const isVote = params.kind !== 'PLAYLIST';
 	const verb = isVote ? 'Suggest' : 'Add';
-	const { lat, lng } = params;
+	const needsPosition = params.needsPosition === '1';
 	const { toast, showError } = useFeedback();
 	const [adding, setAdding] = useState<string | null>(null);
 	const find = useCallback(
-		(words: string) => searchTracks(roomId, words, lat && lng ? { lat: Number(lat), lng: Number(lng) } : null),
-		[roomId, lat, lng],
+		(words: string) => searchTracks(roomId, words),
+		[roomId],
 	);
 	const { text, setText, results, searched, searching, error, tooShort, searchNow } = useSearch(find);
 
@@ -35,7 +36,8 @@ export default function AddTrackScreen() {
 		if (adding) return;
 		setAdding(result.providerId);
 		try {
-			const position = lat && lng ? { lat: Number(lat), lng: Number(lng) } : null;
+			// Place-and-time rooms: where the phone is right now
+			const position = needsPosition ? await currentPosition() : null;
 			await addTrack(roomId, result.providerId, position);
 			toast(isVote ? 'Track suggested' : 'Track added', 'success');
 			router.back();

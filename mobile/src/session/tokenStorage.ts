@@ -4,10 +4,12 @@ const KEY = 'login';
 
 export type SavedLogin = {
 	token: string;
+	// 7-day key to get a new token once it expires
+	refreshToken?: string;
 	serverUrl: string;
 };
 
-// Login token and the server that issued it, in the phone's encrypted storage
+// Login tokens and the server that issued them, in the phone's encrypted storage
 export const tokenStorage = {
 	async get(): Promise<SavedLogin | null> {
 		const raw = await SecureStore.getItemAsync(KEY);
@@ -19,6 +21,7 @@ export const tokenStorage = {
 			return null;
 		}
 	},
-	set: (token: string, serverUrl: string) => SecureStore.setItemAsync(KEY, JSON.stringify({ token, serverUrl })),
+	set: (token: string, serverUrl: string, refreshToken?: string) =>
+		SecureStore.setItemAsync(KEY, JSON.stringify({ token, refreshToken, serverUrl })),
 	clear: () => SecureStore.deleteItemAsync(KEY),
 };
