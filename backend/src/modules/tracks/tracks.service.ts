@@ -224,6 +224,7 @@ export class TracksService {
 			throw new ForbiddenException('Only the room owner can trigger playback');
 		}
 
+		const startedAt = new Date();
 		const currentTrack = await this.prisma.$transaction(async (tx) => {
 			const nextTrack = await tx.track.findFirst({
 				where: {
@@ -246,15 +247,19 @@ export class TracksService {
 
 			await tx.room.update({
 				where: { id: roomId },
-				data: { currentTrackId: nextTrack?.id ?? null },
+				data: {
+					currentTrackId: nextTrack?.id ?? null,
+					currentTrackStartedAt: nextTrack ? startedAt : null,
+				},
 			});
 
 			return nextTrack;
 		});
 
-		this.events.emit('room.playback.next', { roomId, currentTrack: currentTrack ?? null });
+		const playing = { currentTrack: currentTrack ?? null, startedAt: currentTrack ? startedAt : null };
+		this.events.emit('room.playback.next', { roomId, ...playing });
 		await this.broadcastTracks(roomId);
 
-		return { currentTrack: currentTrack ?? null };
+		return playing;
 	}
 }
