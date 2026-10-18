@@ -10,31 +10,38 @@ export class FriendsService {
 		if (currentUserId === receiverId) {
 			throw new BadRequestException('You cannot send a friend request to yourself');
 		}
-
+	
 		const targetUser = await this.prisma.user.findUnique({ where: { id: receiverId } });
 		if (!targetUser) {
 			throw new NotFoundException('User not found');
 		}
-
-		const existing = await this.prisma.friendship.findFirst({
-			where: {
-				OR: [
-					{ senderId: currentUserId, receiverId },
-					{ senderId: receiverId, receiverId: currentUserId },
-				],
-			},
-		});
-
-		if (existing) {
-			throw new ConflictException(`Friendship relation already exists with status: ${existing.status}`);
-		}
-
-		return this.prisma.friendship.create({
-			data: {
-				senderId: currentUserId,
-				receiverId,
-				status: FriendshipStatus.PENDING,
-			},
+	
+		return this.prisma.$transaction(async (tx) => {
+			// serialize concurrent requests between the same pair of users,
+			// regardless of who is sender vs receiver in either call
+			const [a, b] = [currentUserId, receiverId].sort();
+			await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${a}), hashtext(${b}))`;
+		
+			const existing = await tx.friendship.findFirst({
+				where: {
+					OR: [
+						{ senderId: currentUserId, receiverId },
+						{ senderId: receiverId, receiverId: currentUserId },
+					],
+				},
+			});
+		
+			if (existing) {
+				throw new ConflictException(`Friendship relation already exists with status: ${existing.status}`);
+			}
+		
+			return tx.friendship.create({
+				data: {
+					senderId: currentUserId,
+					receiverId,
+					status: FriendshipStatus.PENDING,
+				},
+			});
 		});
 	}
 
@@ -64,8 +71,8 @@ export class FriendsService {
 				OR: [{ senderId: userId }, { receiverId: userId }],
 			},
 			include: {
-				sender: { select: { id: true, displayName: true, email: true } },
-				receiver: { select: { id: true, displayName: true, email: true } },
+				sender: { select: { id: true, displayName: true, avatarUrl: true } },
+				receiver: { select: { id: true, displayName: true, avatarUrl: true } },
 			},
 		});
 
@@ -79,7 +86,7 @@ export class FriendsService {
 				status: FriendshipStatus.PENDING,
 			},
 			include: {
-				sender: { select: { id: true, displayName: true, email: true } },
+				sender: { select: { id: true, displayName: true, avatarUrl: true } },
 			},
 		});
 	}

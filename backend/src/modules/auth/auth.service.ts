@@ -1,19 +1,21 @@
-import { ConflictException, UnauthorizedException, BadRequestException, Injectable } from "@nestjs/common";
+import { ConflictException, UnauthorizedException, BadRequestException, Injectable, ForbiddenException } from "@nestjs/common";
 import * as argon2 from 'argon2';
 import * as crypto from 'crypto';
-import { JwtService } from "@nestjs/jwt";
-import { ConfigService } from "@nestjs/config";
 import { OAuth2Client } from 'google-auth-library';
+import { User } from '@prisma/client';
+import { JwtService, JwtSignOptions } from "@nestjs/jwt";
 import { PrismaService } from "../../prisma/prisma.service";
 import { MailService } from "./mail.service";
 import { RegisterDto } from "./dto/register.dto";
 import { LoginDto } from "./dto/login.dto";
 import { RequestPasswordResetDto } from "./dto/request-password-reset.dto";
 import { ResetPasswordDto } from "./dto/reset-password.dto";
+import { ConfigService } from "@nestjs/config";
 
 @Injectable()
 export class AuthService {
 	private googleClient = new OAuth2Client();
+	private readonly MAX_CODE_ATTEMPTS = 5;
 
 	constructor(
 		private prisma: PrismaService,
@@ -57,13 +59,15 @@ export class AuthService {
 		};
 	}
 
-	async verifyEmail(token: string) {
-		const user = await this.prisma.user.findFirst({
-			where: { emailVerificationToken: token },
-		});
+	async verifyEmail(email: string, token: string) {
+			const user = await this.prisma.user.findUnique({ where: { email } });
 
-		if (!user) {
-			throw new BadRequestException('Invalid or expired verification token');
+		if (!user || !user.emailVerificationToken) {
+			throw new BadRequestException('Invalid or expired verification code');
+		}
+
+		if (user.emailVerificationToken !== token) {
+			await this.registerFailedEmailVerificationAttempt(user);
 		}
 
 		await this.prisma.user.update({
@@ -71,10 +75,11 @@ export class AuthService {
 			data: {
 				emailVerified: true,
 				emailVerificationToken: null,
+				emailVerificationAttempts: 0,
 			},
 		});
 
-		return { message: 'Email verified succesfully'};
+		return { message: 'Email verified succesfully' };
 	}
 
 	async login(dto: LoginDto) {
@@ -91,21 +96,45 @@ export class AuthService {
 			throw new UnauthorizedException('Invalid credentials');
 		}
 
+		if (!user.emailVerified) {
+			throw new ForbiddenException('Verify your email before logging in');
+		}
 		return this.issueTokens(user.id, user.email);
 	}
 
 	private async issueTokens(userId: string, email: string | null) {
-		const payload = { sub: userId, email };
+		const accessToken = await this.jwt.signAsync(
+			{ sub: userId, email, type: 'access' },
+			{ expiresIn: this.config.get<string>('JWT_EXPIRES_IN')as JwtSignOptions['expiresIn'] },
+		);
 
-		const accessToken = await this.jwt.signAsync(payload, {
-			expiresIn: '15m',
-		});
-
-		const refreshToken = await this.jwt.signAsync(payload, {
-			expiresIn: '7d',
-		});
+		const refreshToken = await this.jwt.signAsync(
+			{ sub: userId, email, type: 'refresh' },
+			{ expiresIn: '7d' },
+		);
 
 		return { accessToken, refreshToken };
+	}
+
+	async refreshTokens(refreshToken: string) {
+		let payload: { sub: string; email: string | null; type?: string };
+
+		try {
+			payload = await this.jwt.verifyAsync(refreshToken);
+		} catch {
+			throw new UnauthorizedException('Invalid or expired refresh token');
+		}
+
+		if (payload.type !== 'refresh') {
+			throw new UnauthorizedException('Invalid refresh token');
+		}
+
+		const user = await this.prisma.user.findUnique({ where: { id: payload.sub }});
+		if (!user) {
+			throw new UnauthorizedException('User no longer exists');
+		}
+
+		return this.issueTokens(user.id, user.email);
 	}
 
 	async requestPasswordReset(dto: RequestPasswordResetDto) {
@@ -136,12 +165,14 @@ export class AuthService {
 	}
 
 	async resetPassword(dto: ResetPasswordDto) {
-		const user = await this.prisma.user.findFirst({
-			where: { passwordResetToken: dto.token },
-		});
+		const user = await this.prisma.user.findUnique({ where: { email: dto.email } });
 
-		if (!user || !user.passwordResetExpiresAt || user.passwordResetExpiresAt < new Date()) {
-			throw new BadRequestException('Invalid or expired reset token');
+		if ( !user || !user.passwordResetToken || !user.passwordResetExpiresAt || user.passwordResetExpiresAt < new Date()) {
+			throw new BadRequestException('Invalid or expired reset code');
+		}
+
+		if (user.passwordResetToken !== dto.token) {
+			await this.registerFailedPasswordResetAttempt(user);
 		}
 
 		const passwordHash = await argon2.hash(dto.newPassword);
@@ -152,6 +183,7 @@ export class AuthService {
 				passwordHash,
 				passwordResetToken: null,
 				passwordResetExpiresAt: null,
+				passwordResetAttempts: 0,
 			},
 		});
 		return { message: 'Password reset successfully' };
@@ -269,4 +301,34 @@ export class AuthService {
 			throw new UnauthorizedException('Invalid or expired Google ID token');
 		}
 	}
+
+	private async registerFailedEmailVerificationAttempt(user: User): Promise<never> {
+		const attempts = user.emailVerificationAttempts + 1;
+		const lockedOut = attempts >= this.MAX_CODE_ATTEMPTS;
+
+		await this.prisma.user.update({
+			where: { id: user.id },
+			data: lockedOut
+				? { emailVerificationToken: null, emailVerificationAttempts: 0 }
+				: { emailVerificationAttempts: attempts },
+		});
+
+		throw new BadRequestException('Invalid or expired verification code');
+	}
+
+	private async registerFailedPasswordResetAttempt(user: User): Promise<never> {
+		const attempts = user.passwordResetAttempts + 1;
+		const lockedOut = attempts >= this.MAX_CODE_ATTEMPTS;
+
+		await this.prisma.user.update({
+			where: { id: user.id },
+			data: lockedOut
+				? { passwordResetToken: null, passwordResetExpiresAt: null, passwordResetAttempts: 0 }
+				: { passwordResetAttempts: attempts },
+		});
+
+		throw new BadRequestException('Invalid or expired reset code');
+	}
 }
+
+

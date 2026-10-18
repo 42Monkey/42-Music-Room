@@ -66,6 +66,9 @@ prisma:
 studio:
 	docker compose exec api-1 npx prisma studio
 
+k6:
+	docker compose run --rm k6 run /scripts/load-test.js
+
 seed:
 	@printf "$(BLUE)🌱 Seeding test accounts...$(RESET)\n"
 	@docker compose exec api-1 npx prisma db seed
@@ -115,6 +118,9 @@ mobile:
 	@$(MAKE) --no-print-directory banner
 	@cd mobile && npx expo start --tunnel
 
+test:
+	npm --prefix backend test
+
 status:
 	@echo ""
 	@docker compose ps --format "table {{.Service}}\t{{.Name}}\t{{.State}}\t{{.Ports}}"
@@ -132,10 +138,15 @@ help:
 	@printf "  make up      - Build and start containers in the background\n"
 	@printf "  make down    - Stop everything\n"
 	@printf "  make logs    - Follow container logs\n"
-	@printf "  make status  - Show container status\n"
+	@printf "  make status  - Show container, network and volume status\n"
 	@printf "  make banner  - Show the links and test logins again\n"
+	@printf "  make prisma  - Push Prisma schema changes to the database\n"
+	@printf "  make seed    - Seed the database with the test users\n"
+	@printf "  make studio  - Open Prisma Studio (database GUI)\n"
+	@printf "  make test    - Run the backend unit tests\n"
+	@printf "  make k6      - Run the k6 load tests\n"
 	@printf "  make clean   - Stop everything and remove volumes and dependencies\n"
 	@printf "  make fclean  - Deep clean (stop, volumes, orphaned containers, app dependencies)\n"
 	@printf "  make re      - Full reset and restart\n\n"
 
-.PHONY: all check up down logs clean fclean prisma studio seed tunnel banner mobile status help re
+.PHONY: all check up down logs clean fclean prisma studio seed tunnel banner mobile status help re test k6

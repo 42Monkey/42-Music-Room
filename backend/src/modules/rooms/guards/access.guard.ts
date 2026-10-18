@@ -11,21 +11,12 @@ export class AccessPolicyGuard implements CanActivate {
 		const userId: string = req.user.id;
 		const roomId: string = req.params.roomId;
 
-		const room = await this.prisma.room.findUnique({ where: { id: roomId } });
+		const room = req.room ?? (await this.prisma.room.findUnique({ where: { id: roomId } }));
 		if (!room) {
 			throw new NotFoundException('Room not found');
 		}
 
 		const isOwner = room.ownerId === userId;
-
-		if (room.visibility === 'PRIVATE' && !isOwner) {
-			const membership = await this.prisma.roomMember.findUnique({
-				where: { roomId_userId: { roomId, userId } },
-			});
-			if (!membership) {
-				throw new NotFoundException('Room not found');
-			}
-		}
 
 		switch (room.accessPolicy) {
 			case 'OPEN':
@@ -64,7 +55,7 @@ export class AccessPolicyGuard implements CanActivate {
 
 					const distance = calculateDistanceMeters(lat, lng, room.locationLat, room.locationLng);
 					if (distance > room.locationRadiusM) {
-						throw new ForbiddenException('You are outside this room\'s allowed location radius');
+						throw new ForbiddenException("You are outside this room's allowed location radius");
 					}
 				}
 
