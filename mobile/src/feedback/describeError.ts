@@ -71,11 +71,22 @@ const ROOM_RULES: Record<string, ErrorDescription> = {
 	},
 };
 
+// Login and account errors, worded for people (a wrong password is not an ended session)
+const AUTH_RULES: Record<string, ErrorDescription> = {
+	'Invalid credentials': {
+		title: 'Wrong email or password',
+		message: 'Check your email and password, then try again.',
+	},
+};
+
 // Backend answers: one message per status code
 function describeApi(error: ApiError): ErrorDescription {
 	const { status } = error;
 	if (typeof error.serverMessage === 'string' && ROOM_RULES[error.serverMessage]) {
 		return ROOM_RULES[error.serverMessage];
+	}
+	if (typeof error.serverMessage === 'string' && AUTH_RULES[error.serverMessage]) {
+		return AUTH_RULES[error.serverMessage];
 	}
 	if (status === 400) return { title: 'Check your input', message: serverText(error, 'Some fields are not valid.') };
 	if (status === 401) {

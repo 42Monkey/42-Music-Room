@@ -37,6 +37,14 @@ describe('describeError', () => {
 		expect(result.action).toBe('login');
 	});
 
+	it('says the email or password is wrong, not that the session ended', () => {
+		const result = describeError(new ApiError(401, 'Invalid credentials'));
+
+		expect(result.title).toBe('Wrong email or password');
+		expect(result.message).toBe('Check your email and password, then try again.');
+		expect(result.action).toBeUndefined();
+	});
+
 	it('shows the server message for a refused action', () => {
 		const result = describeError(new ApiError(403, 'Only the owner can manage members'));
 
