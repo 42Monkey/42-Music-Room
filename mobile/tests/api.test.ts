@@ -2,6 +2,7 @@ import { api, configureApi } from '@/api/client';
 import { ApiError, NetworkError } from '@/api/errors';
 import { createRoom, getRoom } from '@/api/rooms';
 import { inviteMember, listMembers, removeMember, searchUsers } from '@/api/members';
+import { login, register, requestPasswordReset, resetPassword } from '@/api/auth';
 import { addTrack, listTracks, nextTrack, removeTrack, reorderTrack, searchTracks, unvoteTrack, voteTrack } from '@/api/tracks';
 import { freshPreview } from '@/lib/deezer';
 import { failure, mockFetch, reply } from './helpers';
@@ -308,5 +309,61 @@ describe('api client', () => {
 		expect(error).toBeInstanceOf(NetworkError);
 		expect(error.reason).toBe('no-address');
 		expect(fetchMock).not.toHaveBeenCalled();
+	});
+});
+
+describe('auth api', () => {
+	it('logs in with email and password and returns the tokens', async () => {
+		const tokens = { accessToken: 'a', refreshToken: 'r' };
+		fetchMock.mockResolvedValue(reply(200, tokens));
+
+		const answer = await login('mia@test.com', 'secret123');
+
+		expect(fetchMock.mock.calls[0][0]).toBe('http://10.0.0.5:8080/auth/login');
+		expect(fetchMock.mock.calls[0][1].method).toBe('POST');
+		expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ email: 'mia@test.com', password: 'secret123' });
+		expect(answer).toEqual(tokens);
+	});
+
+	it('fails with the server message when the email is not verified', async () => {
+		fetchMock.mockResolvedValue(reply(403, { statusCode: 403, message: 'Verify your email before logging in' }));
+
+		const error = await failure(login('mia@test.com', 'secret123'));
+
+		expect(error).toBeInstanceOf(ApiError);
+		expect(error.status).toBe(403);
+		expect(error.message).toBe('Verify your email before logging in');
+	});
+
+	it('creates an account', async () => {
+		const input = { email: 'mia@test.com', password: 'secret123', displayName: 'Mia' };
+		fetchMock.mockResolvedValue(reply(201, { id: 'u1', email: 'mia@test.com', displayName: 'Mia' }));
+
+		const user = await register(input);
+
+		expect(fetchMock.mock.calls[0][0]).toBe('http://10.0.0.5:8080/auth/register');
+		expect(fetchMock.mock.calls[0][1].method).toBe('POST');
+		expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual(input);
+		expect(user.id).toBe('u1');
+	});
+
+	it('asks for a password reset code', async () => {
+		fetchMock.mockResolvedValue(reply(200, { message: 'If that email exists, a reset link has been sent.' }));
+
+		await requestPasswordReset('mia@test.com');
+
+		expect(fetchMock.mock.calls[0][0]).toBe('http://10.0.0.5:8080/auth/request-password-reset');
+		expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ email: 'mia@test.com' });
+	});
+
+	it('sets a new password with the code', async () => {
+		const input = { email: 'mia@test.com', token: '123456', newPassword: 'newsecret1' };
+		fetchMock.mockResolvedValue(reply(200, { message: 'Password reset successfully' }));
+
+		await resetPassword(input);
+
+		expect(fetchMock.mock.calls[0][0]).toBe('http://10.0.0.5:8080/auth/reset-password');
+		expect(fetchMock.mock.calls[0][1].method).toBe('POST');
+		expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual(input);
 	});
 });
