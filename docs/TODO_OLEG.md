@@ -5,7 +5,6 @@ Base app is ready in `mobile/` (Expo + Expo Router). Run `make`, scan the QR cod
 - your screens: `src/app/(auth)/` (logged out) and `src/app/(app)/profile/`, `src/app/(app)/friends/` (tabs), empty files are already there
 - your API calls: `src/api/auth.ts`, `users.ts`, `friends.ts` (use `api.get / post / patch` from `src/api/client.ts`)
 - after login: `signIn(tokens)` from `useSession()` with the whole login answer (access + refresh token), the app switches to the tabs by itself and renews the login on its own
-- `src/app/(auth)/login.tsx` is a temporary test login, replace the whole file with your login screen (keep a link to `/settings`, the backend address must stay reachable before login)
 - components: `Screen`, `Button`, `TextField` in `src/components/`
 - errors: `<ErrorText error={error} />` under the action, `useFeedback()` for toasts and dialogs
 - tests in `mobile/tests/`, `npm test` in `mobile/`
