@@ -2,7 +2,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { fireEvent, screen, waitFor } from '@testing-library/react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import LoginScreen from '@/app/(auth)/login';
+import ForgotPasswordScreen from '@/app/(auth)/forgot-password';
 import RegisterScreen from '@/app/(auth)/register';
+import ResetPasswordScreen from '@/app/(auth)/reset-password';
 import VerifyEmailScreen from '@/app/(auth)/verify-email';
 import { PasswordField } from '@/components/PasswordField';
 import {
@@ -11,6 +13,7 @@ import {
 	validateEmail,
 	validateLoginForm,
 	validateRegisterForm,
+	validateResetForm,
 	validateVerifyForm,
 } from '@/auth/authForms';
 import { tokenStorage } from '@/session/tokenStorage';
@@ -160,9 +163,17 @@ describe('Login screen', () => {
 		expect(screen.getByLabelText('Password').props.value).toBe('');
 	});
 
+	it('passes the typed email to the forgot password screen', async () => {
+		await renderWithProviders(<LoginScreen />);
+
+		await fireEvent.changeText(screen.getByLabelText('Email'), ' mia@test.com ');
+		await fireEvent.press(screen.getByRole('button', { name: 'Forgot password?' }));
+
+		expect(router.push).toHaveBeenCalledWith({ pathname: '/forgot-password', params: { email: 'mia@test.com' } });
+	});
+
 	it.each([
 		['Create an account', '/register'],
-		['Forgot password?', '/forgot-password'],
 		['Server settings', '/settings'],
 	])('"%s" opens %s', async (label, path) => {
 		await renderWithProviders(<LoginScreen />);
@@ -392,5 +403,139 @@ describe('Verify email screen', () => {
 			expect(router.dismissTo).toHaveBeenCalledWith({ pathname: '/login', params: { email: 'mia@test.com' } }),
 		);
 		expect(fetchMock.mock.calls[0][0]).toBe(`${SERVER}/auth/verify-email?email=mia%40test.com&token=123456`);
+	});
+});
+
+describe('validateResetForm', () => {
+	it('builds the body with the code as token and the password as typed', () => {
+		expect(validateResetForm({ email: ' mia@test.com ', code: '123 456', newPassword: ' newsecret ' })).toEqual({
+			ok: true,
+			input: { email: 'mia@test.com', token: '123456', newPassword: ' newsecret ' },
+		});
+	});
+
+	it('needs the email, a 6-digit code and a new password of 8 characters', () => {
+		expect(validateResetForm({ email: '', code: '123', newPassword: 'short' })).toEqual({
+			ok: false,
+			errors: {
+				email: 'Enter your email.',
+				code: 'Enter the 6-digit code from the email.',
+				newPassword: 'Use at least 8 characters.',
+			},
+		});
+	});
+});
+
+describe('Forgot password screen', () => {
+	it('starts with the email typed on the login screen', async () => {
+		(useLocalSearchParams as jest.Mock).mockReturnValue({ email: 'mia@test.com' });
+		await renderWithProviders(<ForgotPasswordScreen />);
+
+		expect(screen.getByLabelText('Email').props.value).toBe('mia@test.com');
+	});
+
+	it('shows a typo in the email and sends nothing', async () => {
+		await renderWithProviders(<ForgotPasswordScreen />);
+
+		await fireEvent.changeText(screen.getByLabelText('Email'), 'mia@testcom');
+		await fireEvent.press(screen.getByRole('button', { name: 'Send code' }));
+
+		expect(screen.getByText('Enter a valid email, like name@example.com.')).toBeTruthy();
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
+	it('asks for a code, then opens the next step with the email', async () => {
+		routeFetch(fetchMock, { '/auth/request-password-reset': reply(200, { message: 'If that email exists...' }) });
+		await renderWithProviders(<ForgotPasswordScreen />);
+
+		await fireEvent.changeText(screen.getByLabelText('Email'), ' mia@test.com ');
+		await fireEvent.press(screen.getByRole('button', { name: 'Send code' }));
+
+		await waitFor(() =>
+			expect(router.replace).toHaveBeenCalledWith({ pathname: '/reset-password', params: { email: 'mia@test.com' } }),
+		);
+		expect(sentCalls()).toEqual([{ path: '/auth/request-password-reset', body: { email: 'mia@test.com' } }]);
+	});
+});
+
+describe('Reset password screen', () => {
+	function openedFor(email: string) {
+		(useLocalSearchParams as jest.Mock).mockReturnValue({ email });
+	}
+
+	async function fillAndChange(code: string, newPassword: string) {
+		await fireEvent.changeText(screen.getByLabelText('Code'), code);
+		await fireEvent.changeText(screen.getByLabelText('New password'), newPassword);
+		await fireEvent.press(screen.getByRole('button', { name: 'Change password' }));
+	}
+
+	it('says where the code may have been sent, without saying the account exists', async () => {
+		openedFor('mia@test.com');
+		await renderWithProviders(<ResetPasswordScreen />);
+
+		expect(screen.getByText('mia@test.com')).toBeTruthy();
+		expect(screen.getByText(/If an account uses/)).toBeTruthy();
+		expect(screen.queryByLabelText('Email')).toBeNull();
+	});
+
+	it('shows what is wrong and sends nothing', async () => {
+		openedFor('mia@test.com');
+		await renderWithProviders(<ResetPasswordScreen />);
+
+		await fillAndChange('12', 'short');
+
+		expect(screen.getByText('Enter the 6-digit code from the email.')).toBeTruthy();
+		expect(screen.getByText('Use at least 8 characters.')).toBeTruthy();
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
+	it('changes the password, then goes back to login with the email', async () => {
+		openedFor('mia@test.com');
+		routeFetch(fetchMock, { '/auth/reset-password': reply(200, { message: 'Password reset successfully' }) });
+		await renderWithProviders(<ResetPasswordScreen />);
+
+		await fillAndChange('123456', 'newsecret1');
+
+		await waitFor(() =>
+			expect(router.dismissTo).toHaveBeenCalledWith({ pathname: '/login', params: { email: 'mia@test.com' } }),
+		);
+		expect(sentCalls()).toEqual([
+			{ path: '/auth/reset-password', body: { email: 'mia@test.com', token: '123456', newPassword: 'newsecret1' } },
+		]);
+		expect(screen.getByText('Password changed. Log in with your new password.')).toBeTruthy();
+	});
+
+	it('says how to get out of a wrong or dead code', async () => {
+		openedFor('mia@test.com');
+		routeFetch(fetchMock, {
+			'/auth/reset-password': reply(400, { statusCode: 400, message: 'Invalid or expired reset code' }),
+		});
+		await renderWithProviders(<ResetPasswordScreen />);
+
+		await fillAndChange('999999', 'newsecret1');
+
+		await waitFor(() =>
+			expect(screen.getByText("Check the code in the email, or send a new one if it's old.")).toBeTruthy(),
+		);
+		expect(router.dismissTo).not.toHaveBeenCalled();
+	});
+
+	it('sends a new code and empties the code field', async () => {
+		openedFor('mia@test.com');
+		routeFetch(fetchMock, { '/auth/request-password-reset': reply(200, {}) });
+		await renderWithProviders(<ResetPasswordScreen />);
+
+		await fireEvent.changeText(screen.getByLabelText('Code'), '111111');
+		await fireEvent.press(screen.getByRole('button', { name: 'Send a new code' }));
+
+		await waitFor(() => expect(screen.getByText('New code sent')).toBeTruthy());
+		expect(sentCalls()).toEqual([{ path: '/auth/request-password-reset', body: { email: 'mia@test.com' } }]);
+		expect(screen.getByLabelText('Code').props.value).toBe('');
+	});
+
+	it('asks for the email when it was not given', async () => {
+		await renderWithProviders(<ResetPasswordScreen />);
+
+		expect(screen.getByLabelText('Email')).toBeTruthy();
 	});
 });

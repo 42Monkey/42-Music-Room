@@ -86,6 +86,10 @@ const AUTH_RULES: Record<string, ErrorDescription> = {
 		title: "That code didn't work",
 		message: "Check the code in the email, or send a new one if it's old.",
 	},
+	'Invalid or expired reset code': {
+		title: "That code didn't work",
+		message: "Check the code in the email, or send a new one if it's old.",
+	},
 };
 
 // Backend answers: one message per status code

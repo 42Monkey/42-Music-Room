@@ -59,6 +59,12 @@ describe('describeError', () => {
 		expect(result.message).toContain('send a new one');
 	});
 
+	it('words a wrong reset code the same way', () => {
+		const result = describeError(new ApiError(400, 'Invalid or expired reset code'));
+
+		expect(result.title).toBe("That code didn't work");
+	});
+
 	it('shows the server message for a refused action', () => {
 		const result = describeError(new ApiError(403, 'Only the owner can manage members'));
 

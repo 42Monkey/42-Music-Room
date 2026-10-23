@@ -1,4 +1,4 @@
-import type { RegisterInput } from '@/types/api';
+import type { RegisterInput, ResetPasswordInput } from '@/types/api';
 
 export type LoginForm = {
 	email: string;
@@ -79,6 +79,11 @@ const NAME_MIN = 2;
 const NAME_MAX = 50;
 const PASSWORD_MIN = 8;
 
+// A password being chosen (sign-up, reset), not trimmed: spaces can be part of it
+function newPasswordError(password: string): string | undefined {
+	return password.length < PASSWORD_MIN ? `Use at least ${PASSWORD_MIN} characters.` : undefined;
+}
+
 // Checks the sign-up form and builds the body for POST /auth/register
 export function validateRegisterForm(form: RegisterForm): RegisterFormResult {
 	const errors: RegisterFormErrors = {};
@@ -90,8 +95,8 @@ export function validateRegisterForm(form: RegisterForm): RegisterFormResult {
 	const emailProblem = emailError(email);
 	if (emailProblem) errors.email = emailProblem;
 
-	// Not trimmed: spaces can be part of a password
-	if (form.password.length < PASSWORD_MIN) errors.password = `Use at least ${PASSWORD_MIN} characters.`;
+	const passwordProblem = newPasswordError(form.password);
+	if (passwordProblem) errors.password = passwordProblem;
 
 	if (Object.keys(errors).length > 0) return { ok: false, errors };
 	return { ok: true, input: { displayName, email, password: form.password } };
@@ -121,4 +126,34 @@ export function validateVerifyForm(form: VerifyForm): VerifyFormResult {
 
 	if (Object.keys(errors).length > 0) return { ok: false, errors };
 	return { ok: true, input: { email, code } };
+}
+
+export type ResetForm = {
+	email: string;
+	code: string;
+	newPassword: string;
+};
+
+export type ResetFormErrors = {
+	email?: string;
+	code?: string;
+	newPassword?: string;
+};
+
+export type ResetFormResult = { ok: true; input: ResetPasswordInput } | { ok: false; errors: ResetFormErrors };
+
+// Checks the email, the code and the new password, builds the body for POST /auth/reset-password
+export function validateResetForm(form: ResetForm): ResetFormResult {
+	const errors: ResetFormErrors = {};
+	const email = form.email.trim();
+	const emailProblem = emailError(email);
+	if (emailProblem) errors.email = emailProblem;
+	const code = cleanCode(form.code);
+	const codeProblem = codeError(code);
+	if (codeProblem) errors.code = codeProblem;
+	const passwordProblem = newPasswordError(form.newPassword);
+	if (passwordProblem) errors.newPassword = passwordProblem;
+
+	if (Object.keys(errors).length > 0) return { ok: false, errors };
+	return { ok: true, input: { email, token: code, newPassword: form.newPassword } };
 }

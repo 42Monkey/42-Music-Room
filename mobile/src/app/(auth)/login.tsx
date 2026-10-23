@@ -90,7 +90,11 @@ export default function LoginScreen() {
 					<Button label="Log in" onPress={submit} loading={loading} />
 					<ErrorText error={error} />
 				</View>
-				<Button label="Forgot password?" variant="quiet" onPress={() => router.push('/forgot-password')} />
+				<Button
+					label="Forgot password?"
+					variant="quiet"
+					onPress={() => router.push({ pathname: '/forgot-password', params: { email: form.email.trim() } })}
+				/>
 			</View>
 
 			<View style={styles.footer}>
