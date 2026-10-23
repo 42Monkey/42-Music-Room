@@ -5,6 +5,7 @@ import { login } from '@/api/auth';
 import { ApiError } from '@/api/errors';
 import { validateLoginForm, type LoginForm, type LoginFormErrors } from '@/auth/authForms';
 import { Button } from '@/components/Button';
+import { PasswordField } from '@/components/PasswordField';
 import { Screen } from '@/components/Screen';
 import { TextField } from '@/components/TextField';
 import { ErrorText } from '@/feedback/ErrorText';
@@ -65,14 +66,11 @@ export default function LoginScreen() {
 					textContentType="emailAddress"
 					returnKeyType="next"
 				/>
-				<TextField
+				<PasswordField
 					label="Password"
 					value={form.password}
 					onChangeText={(password) => update({ password })}
 					error={errors.password}
-					secureTextEntry
-					autoCapitalize="none"
-					autoCorrect={false}
 					autoComplete="current-password"
 					textContentType="password"
 					returnKeyType="go"

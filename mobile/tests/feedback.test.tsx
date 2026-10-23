@@ -45,6 +45,13 @@ describe('describeError', () => {
 		expect(result.action).toBeUndefined();
 	});
 
+	it('says the email already has an account and how to get in', () => {
+		const result = describeError(new ApiError(409, 'Email already in use'));
+
+		expect(result.title).toBe('Email already registered');
+		expect(result.message).toContain('Log in instead');
+	});
+
 	it('shows the server message for a refused action', () => {
 		const result = describeError(new ApiError(403, 'Only the owner can manage members'));
 

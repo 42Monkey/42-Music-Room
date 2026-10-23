@@ -1,3 +1,5 @@
+import type { RegisterInput } from '@/types/api';
+
 export type LoginForm = {
 	email: string;
 	password: string;
@@ -34,4 +36,41 @@ export function validateLoginForm(form: LoginForm): LoginFormResult {
 
 	if (Object.keys(errors).length > 0) return { ok: false, errors };
 	return { ok: true, input: { email, password: form.password } };
+}
+
+export type RegisterForm = {
+	displayName: string;
+	email: string;
+	password: string;
+};
+
+export type RegisterFormErrors = {
+	displayName?: string;
+	email?: string;
+	password?: string;
+};
+
+export type RegisterFormResult = { ok: true; input: RegisterInput } | { ok: false; errors: RegisterFormErrors };
+
+// Same limits as the backend: 2 to register, 50 to edit the profile later
+const NAME_MIN = 2;
+const NAME_MAX = 50;
+const PASSWORD_MIN = 8;
+
+// Checks the sign-up form and builds the body for POST /auth/register
+export function validateRegisterForm(form: RegisterForm): RegisterFormResult {
+	const errors: RegisterFormErrors = {};
+	const displayName = form.displayName.trim();
+	if (displayName.length < NAME_MIN) errors.displayName = `Enter a name of at least ${NAME_MIN} characters.`;
+	else if (displayName.length > NAME_MAX) errors.displayName = `Keep the name under ${NAME_MAX} characters.`;
+
+	const email = form.email.trim();
+	const emailProblem = emailError(email);
+	if (emailProblem) errors.email = emailProblem;
+
+	// Not trimmed: spaces can be part of a password
+	if (form.password.length < PASSWORD_MIN) errors.password = `Use at least ${PASSWORD_MIN} characters.`;
+
+	if (Object.keys(errors).length > 0) return { ok: false, errors };
+	return { ok: true, input: { displayName, email, password: form.password } };
 }

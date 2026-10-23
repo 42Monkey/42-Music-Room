@@ -77,6 +77,10 @@ const AUTH_RULES: Record<string, ErrorDescription> = {
 		title: 'Wrong email or password',
 		message: 'Check your email and password, then try again.',
 	},
+	'Email already in use': {
+		title: 'Email already registered',
+		message: 'An account already uses this email. Log in instead, or reset your password if you forgot it.',
+	},
 };
 
 // Backend answers: one message per status code

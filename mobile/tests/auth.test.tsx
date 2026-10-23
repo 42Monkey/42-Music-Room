@@ -2,7 +2,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { fireEvent, screen, waitFor } from '@testing-library/react-native';
 import { router } from 'expo-router';
 import LoginScreen from '@/app/(auth)/login';
-import { isEmail, validateLoginForm } from '@/auth/authForms';
+import RegisterScreen from '@/app/(auth)/register';
+import { PasswordField } from '@/components/PasswordField';
+import { isEmail, validateLoginForm, validateRegisterForm } from '@/auth/authForms';
 import { tokenStorage } from '@/session/tokenStorage';
 import { mockFetch, renderWithProviders, reply, routeFetch, SERVER } from './helpers';
 
@@ -16,6 +18,8 @@ beforeEach(async () => {
 	process.env.EXPO_PUBLIC_API_URL = SERVER;
 	fetchMock = mockFetch();
 	(router.push as jest.Mock).mockReset();
+	(router.replace as jest.Mock).mockReset();
+	(router.back as jest.Mock).mockReset();
 });
 
 // Path and body of every call sent to the fake backend
@@ -31,6 +35,20 @@ async function fillAndSubmit(email: string, password: string) {
 	await fireEvent.changeText(screen.getByLabelText('Password'), password);
 	await fireEvent.press(screen.getByRole('button', { name: 'Log in' }));
 }
+
+describe('PasswordField', () => {
+	it('hides the password until the eye is pressed, then hides it again', async () => {
+		await renderWithProviders(<PasswordField label="Password" value="secret123" />);
+
+		expect(screen.getByLabelText('Password').props.secureTextEntry).toBe(true);
+
+		await fireEvent.press(screen.getByRole('button', { name: 'Show password' }));
+		expect(screen.getByLabelText('Password').props.secureTextEntry).toBe(false);
+
+		await fireEvent.press(screen.getByRole('button', { name: 'Hide password' }));
+		expect(screen.getByLabelText('Password').props.secureTextEntry).toBe(true);
+	});
+});
 
 describe('isEmail', () => {
 	it.each(['mia@test.com', 'mia+music@test.co.uk', 'Mia.K@Test.com'])('accepts %s', (text) => {
@@ -134,5 +152,110 @@ describe('Login screen', () => {
 		await fireEvent.press(screen.getByRole('button', { name: label }));
 
 		expect(router.push).toHaveBeenCalledWith(path);
+	});
+});
+
+describe('validateRegisterForm', () => {
+	const valid = { displayName: ' Mia K ', email: ' mia@test.com ', password: 'secret123' };
+
+	it('trims the name and email but keeps the password as typed', () => {
+		expect(validateRegisterForm({ ...valid, password: ' secret12 ' })).toEqual({
+			ok: true,
+			input: { displayName: 'Mia K', email: 'mia@test.com', password: ' secret12 ' },
+		});
+	});
+
+	it('requires every field', () => {
+		expect(validateRegisterForm({ displayName: ' ', email: '', password: '' })).toEqual({
+			ok: false,
+			errors: {
+				displayName: 'Enter a name of at least 2 characters.',
+				email: 'Enter your email.',
+				password: 'Use at least 8 characters.',
+			},
+		});
+	});
+
+	it('keeps the name between 2 and 50 characters', () => {
+		expect(validateRegisterForm({ ...valid, displayName: ' M ' }).ok).toBe(false);
+		expect(validateRegisterForm({ ...valid, displayName: 'Mi' }).ok).toBe(true);
+		expect(validateRegisterForm({ ...valid, displayName: 'a'.repeat(50) }).ok).toBe(true);
+		expect(validateRegisterForm({ ...valid, displayName: 'a'.repeat(51) })).toEqual({
+			ok: false,
+			errors: { displayName: 'Keep the name under 50 characters.' },
+		});
+	});
+
+	it('needs a password of at least 8 characters', () => {
+		expect(validateRegisterForm({ ...valid, password: 'secret1' })).toEqual({
+			ok: false,
+			errors: { password: 'Use at least 8 characters.' },
+		});
+		expect(validateRegisterForm({ ...valid, password: 'secret12' }).ok).toBe(true);
+	});
+
+
+	it('refuses an email with a typo', () => {
+		expect(validateRegisterForm({ ...valid, email: 'mia@testcom' })).toEqual({
+			ok: false,
+			errors: { email: 'Enter a valid email, like name@example.com.' },
+		});
+	});
+});
+
+describe('Register screen', () => {
+	async function fillAndCreate(displayName: string, email: string, password: string) {
+		await fireEvent.changeText(screen.getByLabelText('Name'), displayName);
+		await fireEvent.changeText(screen.getByLabelText('Email'), email);
+		await fireEvent.changeText(screen.getByLabelText('Password'), password);
+		await fireEvent.press(screen.getByRole('button', { name: 'Create account' }));
+	}
+
+	it('shows what is wrong under each field and sends nothing', async () => {
+		await renderWithProviders(<RegisterScreen />);
+
+		await fillAndCreate('M', 'mia@testcom', 'short');
+
+		expect(screen.getByText('Enter a name of at least 2 characters.')).toBeTruthy();
+		expect(screen.getByText('Enter a valid email, like name@example.com.')).toBeTruthy();
+		expect(screen.getByText('Use at least 8 characters.')).toBeTruthy();
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
+	it('creates the account, then opens the code screen with the email', async () => {
+		routeFetch(fetchMock, { '/auth/register': reply(201, { id: 'u1', email: 'mia@test.com', displayName: 'Mia K' }) });
+		await renderWithProviders(<RegisterScreen />);
+
+		await fillAndCreate(' Mia K ', ' mia@test.com ', 'secret123');
+
+		await waitFor(() =>
+			expect(router.replace).toHaveBeenCalledWith({ pathname: '/verify-email', params: { email: 'mia@test.com' } }),
+		);
+		expect(sentCalls()).toEqual([
+			{ path: '/auth/register', body: { displayName: 'Mia K', email: 'mia@test.com', password: 'secret123' } },
+		]);
+		expect(screen.getByText('Account created')).toBeTruthy();
+	});
+
+	it('says when the email already has an account', async () => {
+		routeFetch(fetchMock, { '/auth/register': reply(409, { statusCode: 409, message: 'Email already in use' }) });
+		await renderWithProviders(<RegisterScreen />);
+
+		await fillAndCreate('Mia K', 'mia@test.com', 'secret123');
+
+		await waitFor(() =>
+			expect(
+				screen.getByText('An account already uses this email. Log in instead, or reset your password if you forgot it.'),
+			).toBeTruthy(),
+		);
+		expect(router.replace).not.toHaveBeenCalled();
+	});
+
+	it('goes back to the login screen', async () => {
+		await renderWithProviders(<RegisterScreen />);
+
+		await fireEvent.press(screen.getByRole('button', { name: 'Back to Log in' }));
+
+		expect(router.back).toHaveBeenCalled();
 	});
 });
