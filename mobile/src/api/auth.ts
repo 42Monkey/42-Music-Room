@@ -12,3 +12,10 @@ export const requestPasswordReset = (email: string) => api.post<Message>('/auth/
 
 // New password with the code from the email
 export const resetPassword = (input: ResetPasswordInput) => api.post<Message>('/auth/reset-password', input);
+
+// Checks the 6-digit code sent by email after sign-up
+export const verifyEmail = (email: string, code: string) =>
+	api.get<Message>(`/auth/verify-email?email=${encodeURIComponent(email)}&token=${encodeURIComponent(code)}`);
+
+// Sends a new verification code (same answer whether the account exists or not)
+export const resendVerification = (email: string) => api.post<Message>('/auth/resend-verification', { email });

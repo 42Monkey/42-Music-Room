@@ -52,6 +52,13 @@ describe('describeError', () => {
 		expect(result.message).toContain('Log in instead');
 	});
 
+	it('says a wrong or dead code can be replaced by a new one', () => {
+		const result = describeError(new ApiError(400, 'Invalid or expired verification code'));
+
+		expect(result.title).toBe("That code didn't work");
+		expect(result.message).toContain('send a new one');
+	});
+
 	it('shows the server message for a refused action', () => {
 		const result = describeError(new ApiError(403, 'Only the owner can manage members'));
 

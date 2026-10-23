@@ -81,6 +81,11 @@ const AUTH_RULES: Record<string, ErrorDescription> = {
 		title: 'Email already registered',
 		message: 'An account already uses this email. Log in instead, or reset your password if you forgot it.',
 	},
+	// Same answer for a wrong code and one killed after 5 tries: point to both ways out
+	'Invalid or expired verification code': {
+		title: "That code didn't work",
+		message: "Check the code in the email, or send a new one if it's old.",
+	},
 };
 
 // Backend answers: one message per status code

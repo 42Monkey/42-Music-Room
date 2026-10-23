@@ -2,7 +2,7 @@ import { api, configureApi } from '@/api/client';
 import { ApiError, NetworkError } from '@/api/errors';
 import { createRoom, getRoom } from '@/api/rooms';
 import { inviteMember, listMembers, removeMember, searchUsers } from '@/api/members';
-import { login, register, requestPasswordReset, resetPassword } from '@/api/auth';
+import { login, register, requestPasswordReset, resendVerification, resetPassword, verifyEmail } from '@/api/auth';
 import { addTrack, listTracks, nextTrack, removeTrack, reorderTrack, searchTracks, unvoteTrack, voteTrack } from '@/api/tracks';
 import { freshPreview } from '@/lib/deezer';
 import { failure, mockFetch, reply } from './helpers';
@@ -365,5 +365,26 @@ describe('auth api', () => {
 		expect(fetchMock.mock.calls[0][0]).toBe('http://10.0.0.5:8080/auth/reset-password');
 		expect(fetchMock.mock.calls[0][1].method).toBe('POST');
 		expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual(input);
+	});
+
+	it('checks the email code, with both values encoded', async () => {
+		fetchMock.mockResolvedValue(reply(200, { message: 'Email verified succesfully' }));
+
+		await verifyEmail('mia+music@test.com', '123456');
+
+		expect(fetchMock.mock.calls[0][0]).toBe(
+			'http://10.0.0.5:8080/auth/verify-email?email=mia%2Bmusic%40test.com&token=123456',
+		);
+		expect(fetchMock.mock.calls[0][1].method).toBe('GET');
+	});
+
+	it('asks for a new email code', async () => {
+		fetchMock.mockResolvedValue(reply(200, {}));
+
+		await resendVerification('mia@test.com');
+
+		expect(fetchMock.mock.calls[0][0]).toBe('http://10.0.0.5:8080/auth/resend-verification');
+		expect(fetchMock.mock.calls[0][1].method).toBe('POST');
+		expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ email: 'mia@test.com' });
 	});
 });

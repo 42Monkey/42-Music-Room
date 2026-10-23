@@ -17,11 +17,33 @@ export function isEmail(text: string): boolean {
 	return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text);
 }
 
+// Codes sent by email: 6 digits
+const CODE_LENGTH = 6;
+
+// What the code field keeps from what was typed or pasted ("123 456" -> "123456")
+export function cleanCode(text: string): string {
+	return text.replace(/\D/g, '').slice(0, CODE_LENGTH);
+}
+
+// Code field: exactly 6 digits
+function codeError(code: string): string | undefined {
+	return code.length === CODE_LENGTH ? undefined : `Enter the ${CODE_LENGTH}-digit code from the email.`;
+}
+
 // Email field: required and shaped like an email
 function emailError(email: string): string | undefined {
 	if (!email) return 'Enter your email.';
 	if (!isEmail(email)) return 'Enter a valid email, like name@example.com.';
 	return undefined;
+}
+
+export type EmailResult = { ok: true; email: string } | { ok: false; error: string };
+
+// Checks a form whose only field is the email (resend a code, forgot password)
+export function validateEmail(text: string): EmailResult {
+	const email = text.trim();
+	const error = emailError(email);
+	return error ? { ok: false, error } : { ok: true, email };
 }
 
 // Checks the login form and builds the body for POST /auth/login
@@ -73,4 +95,30 @@ export function validateRegisterForm(form: RegisterForm): RegisterFormResult {
 
 	if (Object.keys(errors).length > 0) return { ok: false, errors };
 	return { ok: true, input: { displayName, email, password: form.password } };
+}
+
+export type VerifyForm = {
+	email: string;
+	code: string;
+};
+
+export type VerifyFormErrors = {
+	email?: string;
+	code?: string;
+};
+
+export type VerifyFormResult = { ok: true; input: VerifyForm } | { ok: false; errors: VerifyFormErrors };
+
+// Checks the email and the code before GET /auth/verify-email
+export function validateVerifyForm(form: VerifyForm): VerifyFormResult {
+	const errors: VerifyFormErrors = {};
+	const email = form.email.trim();
+	const emailProblem = emailError(email);
+	if (emailProblem) errors.email = emailProblem;
+	const code = cleanCode(form.code);
+	const codeProblem = codeError(code);
+	if (codeProblem) errors.code = codeProblem;
+
+	if (Object.keys(errors).length > 0) return { ok: false, errors };
+	return { ok: true, input: { email, code } };
 }

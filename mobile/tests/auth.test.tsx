@@ -1,10 +1,18 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { fireEvent, screen, waitFor } from '@testing-library/react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import LoginScreen from '@/app/(auth)/login';
 import RegisterScreen from '@/app/(auth)/register';
+import VerifyEmailScreen from '@/app/(auth)/verify-email';
 import { PasswordField } from '@/components/PasswordField';
-import { isEmail, validateLoginForm, validateRegisterForm } from '@/auth/authForms';
+import {
+	cleanCode,
+	isEmail,
+	validateEmail,
+	validateLoginForm,
+	validateRegisterForm,
+	validateVerifyForm,
+} from '@/auth/authForms';
 import { tokenStorage } from '@/session/tokenStorage';
 import { mockFetch, renderWithProviders, reply, routeFetch, SERVER } from './helpers';
 
@@ -20,6 +28,7 @@ beforeEach(async () => {
 	(router.push as jest.Mock).mockReset();
 	(router.replace as jest.Mock).mockReset();
 	(router.back as jest.Mock).mockReset();
+	(useLocalSearchParams as jest.Mock).mockReturnValue({});
 });
 
 // Path and body of every call sent to the fake backend
@@ -257,5 +266,118 @@ describe('Register screen', () => {
 		await fireEvent.press(screen.getByRole('button', { name: 'Back to Log in' }));
 
 		expect(router.back).toHaveBeenCalled();
+	});
+});
+
+describe('codes and single emails', () => {
+	it('keeps only the digits of a typed or pasted code, 6 at most', () => {
+		expect(cleanCode('123 456')).toBe('123456');
+		expect(cleanCode('12-34-56-78')).toBe('123456');
+		expect(cleanCode('abc')).toBe('');
+	});
+
+	it('checks an email on its own', () => {
+		expect(validateEmail(' mia@test.com ')).toEqual({ ok: true, email: 'mia@test.com' });
+		expect(validateEmail('mia@testcom')).toEqual({ ok: false, error: 'Enter a valid email, like name@example.com.' });
+	});
+
+	it('needs the email and a 6-digit code to verify', () => {
+		expect(validateVerifyForm({ email: ' mia@test.com ', code: '123456' })).toEqual({
+			ok: true,
+			input: { email: 'mia@test.com', code: '123456' },
+		});
+		expect(validateVerifyForm({ email: '', code: '12345' })).toEqual({
+			ok: false,
+			errors: { email: 'Enter your email.', code: 'Enter the 6-digit code from the email.' },
+		});
+	});
+});
+
+describe('Verify email screen', () => {
+	function openedFor(email: string) {
+		(useLocalSearchParams as jest.Mock).mockReturnValue({ email });
+	}
+
+	it('says where the code was sent and asks only for the code', async () => {
+		openedFor('mia@test.com');
+		await renderWithProviders(<VerifyEmailScreen />);
+
+		expect(screen.getByText('mia@test.com')).toBeTruthy();
+		expect(screen.queryByLabelText('Email')).toBeNull();
+		expect(screen.getByLabelText('Code')).toBeTruthy();
+	});
+
+	it('keeps only digits in the code field', async () => {
+		openedFor('mia@test.com');
+		await renderWithProviders(<VerifyEmailScreen />);
+
+		await fireEvent.changeText(screen.getByLabelText('Code'), '123 456');
+
+		expect(screen.getByLabelText('Code').props.value).toBe('123456');
+	});
+
+	it('asks for the whole code before sending anything', async () => {
+		openedFor('mia@test.com');
+		await renderWithProviders(<VerifyEmailScreen />);
+
+		await fireEvent.changeText(screen.getByLabelText('Code'), '123');
+		await fireEvent.press(screen.getByRole('button', { name: 'Verify email' }));
+
+		expect(screen.getByText('Enter the 6-digit code from the email.')).toBeTruthy();
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
+	it('verifies the email, then goes back to login', async () => {
+		openedFor('mia+music@test.com');
+		routeFetch(fetchMock, { '/auth/verify-email': reply(200, { message: 'Email verified succesfully' }) });
+		await renderWithProviders(<VerifyEmailScreen />);
+
+		await fireEvent.changeText(screen.getByLabelText('Code'), '123456');
+		await fireEvent.press(screen.getByRole('button', { name: 'Verify email' }));
+
+		await waitFor(() => expect(router.back).toHaveBeenCalled());
+		expect(fetchMock.mock.calls[0][0]).toBe(`${SERVER}/auth/verify-email?email=mia%2Bmusic%40test.com&token=123456`);
+		expect(screen.getByText('Email verified. Log in to continue.')).toBeTruthy();
+	});
+
+	it('says how to get out of a wrong or dead code', async () => {
+		openedFor('mia@test.com');
+		routeFetch(fetchMock, {
+			'/auth/verify-email': reply(400, { statusCode: 400, message: 'Invalid or expired verification code' }),
+		});
+		await renderWithProviders(<VerifyEmailScreen />);
+
+		await fireEvent.changeText(screen.getByLabelText('Code'), '999999');
+		await fireEvent.press(screen.getByRole('button', { name: 'Verify email' }));
+
+		await waitFor(() =>
+			expect(screen.getByText("Check the code in the email, or send a new one if it's old.")).toBeTruthy(),
+		);
+		expect(router.back).not.toHaveBeenCalled();
+	});
+
+	it('sends a new code and empties the code field', async () => {
+		openedFor('mia@test.com');
+		routeFetch(fetchMock, { '/auth/resend-verification': reply(200, {}) });
+		await renderWithProviders(<VerifyEmailScreen />);
+
+		await fireEvent.changeText(screen.getByLabelText('Code'), '111111');
+		await fireEvent.press(screen.getByRole('button', { name: 'Send a new code' }));
+
+		await waitFor(() => expect(screen.getByText('New code sent')).toBeTruthy());
+		expect(sentCalls()).toEqual([{ path: '/auth/resend-verification', body: { email: 'mia@test.com' } }]);
+		expect(screen.getByLabelText('Code').props.value).toBe('');
+	});
+
+	it('asks for the email when it was not given', async () => {
+		routeFetch(fetchMock, { '/auth/verify-email': reply(200, {}) });
+		await renderWithProviders(<VerifyEmailScreen />);
+
+		await fireEvent.changeText(screen.getByLabelText('Email'), ' mia@test.com ');
+		await fireEvent.changeText(screen.getByLabelText('Code'), '123456');
+		await fireEvent.press(screen.getByRole('button', { name: 'Verify email' }));
+
+		await waitFor(() => expect(router.back).toHaveBeenCalled());
+		expect(fetchMock.mock.calls[0][0]).toBe(`${SERVER}/auth/verify-email?email=mia%40test.com&token=123456`);
 	});
 });
