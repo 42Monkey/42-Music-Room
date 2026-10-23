@@ -40,7 +40,8 @@ export default function VerifyEmailScreen() {
 		try {
 			await verifyEmail(result.input.email, result.input.code);
 			toast('Email verified. Log in to continue.', 'success');
-			router.back();
+			// Back to the open login screen, with the email filled in
+			router.dismissTo({ pathname: '/login', params: { email: result.input.email } });
 		} catch (err) {
 			setError(err);
 			setVerifying(false);

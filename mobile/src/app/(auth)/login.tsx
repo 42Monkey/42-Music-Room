@@ -1,6 +1,6 @@
-import { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-import { router } from 'expo-router';
+import { useEffect, useRef, useState } from 'react';
+import { StyleSheet, Text, TextInput, View } from 'react-native';
+import { router, useLocalSearchParams } from 'expo-router';
 import { login } from '@/api/auth';
 import { ApiError } from '@/api/errors';
 import { validateLoginForm, type LoginForm, type LoginFormErrors } from '@/auth/authForms';
@@ -19,6 +19,15 @@ export default function LoginScreen() {
 	const [errors, setErrors] = useState<LoginFormErrors>({});
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState<unknown>(null);
+	const passwordRef = useRef<TextInput>(null);
+	const { email: verifiedEmail } = useLocalSearchParams<{ email?: string }>();
+
+	// Back from email verification: email filled in, cursor on the password
+	useEffect(() => {
+		if (typeof verifiedEmail !== 'string' || !verifiedEmail) return;
+		setForm((current) => ({ ...current, email: verifiedEmail }));
+		passwordRef.current?.focus();
+	}, [verifiedEmail]);
 
 	const update = (changes: Partial<LoginForm>) => {
 		setForm((current) => ({ ...current, ...changes }));
@@ -67,6 +76,7 @@ export default function LoginScreen() {
 					returnKeyType="next"
 				/>
 				<PasswordField
+					ref={passwordRef}
 					label="Password"
 					value={form.password}
 					onChangeText={(password) => update({ password })}

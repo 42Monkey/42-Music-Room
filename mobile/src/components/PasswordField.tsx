@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type Ref } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { ErrorText } from '@/feedback/ErrorText';
@@ -8,10 +8,11 @@ type Props = Omit<TextInputProps, 'secureTextEntry'> & {
 	label: string;
 	error?: string | null;
 	hint?: string;
+	ref?: Ref<TextInput>;
 };
 
 // Password input with a show / hide button, same look as TextField
-export function PasswordField({ label, error, hint, onFocus, onBlur, ...input }: Props) {
+export function PasswordField({ label, error, hint, ref, onFocus, onBlur, ...input }: Props) {
 	const [focused, setFocused] = useState(false);
 	const [visible, setVisible] = useState(false);
 
@@ -20,6 +21,7 @@ export function PasswordField({ label, error, hint, onFocus, onBlur, ...input }:
 			<Text style={styles.label}>{label}</Text>
 			<View style={[styles.box, focused && styles.focused, error ? styles.invalid : null]}>
 				<TextInput
+					ref={ref}
 					accessibilityLabel={label}
 					placeholderTextColor={colors.muted}
 					secureTextEntry={!visible}

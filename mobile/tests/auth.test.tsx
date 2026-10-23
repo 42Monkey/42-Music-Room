@@ -28,6 +28,7 @@ beforeEach(async () => {
 	(router.push as jest.Mock).mockReset();
 	(router.replace as jest.Mock).mockReset();
 	(router.back as jest.Mock).mockReset();
+	(router.dismissTo as jest.Mock).mockReset();
 	(useLocalSearchParams as jest.Mock).mockReturnValue({});
 });
 
@@ -149,6 +150,14 @@ describe('Login screen', () => {
 			expect(router.push).toHaveBeenCalledWith({ pathname: '/verify-email', params: { email: 'mia@test.com' } }),
 		);
 		expect(screen.queryByText('Verify your email before logging in.')).toBeNull();
+	});
+
+	it('fills in the email when coming back from email verification', async () => {
+		(useLocalSearchParams as jest.Mock).mockReturnValue({ email: 'mia@test.com' });
+		await renderWithProviders(<LoginScreen />);
+
+		expect(screen.getByLabelText('Email').props.value).toBe('mia@test.com');
+		expect(screen.getByLabelText('Password').props.value).toBe('');
 	});
 
 	it.each([
@@ -327,7 +336,7 @@ describe('Verify email screen', () => {
 		expect(fetchMock).not.toHaveBeenCalled();
 	});
 
-	it('verifies the email, then goes back to login', async () => {
+	it('verifies the email, then goes back to login with the email', async () => {
 		openedFor('mia+music@test.com');
 		routeFetch(fetchMock, { '/auth/verify-email': reply(200, { message: 'Email verified succesfully' }) });
 		await renderWithProviders(<VerifyEmailScreen />);
@@ -335,7 +344,9 @@ describe('Verify email screen', () => {
 		await fireEvent.changeText(screen.getByLabelText('Code'), '123456');
 		await fireEvent.press(screen.getByRole('button', { name: 'Verify email' }));
 
-		await waitFor(() => expect(router.back).toHaveBeenCalled());
+		await waitFor(() =>
+			expect(router.dismissTo).toHaveBeenCalledWith({ pathname: '/login', params: { email: 'mia+music@test.com' } }),
+		);
 		expect(fetchMock.mock.calls[0][0]).toBe(`${SERVER}/auth/verify-email?email=mia%2Bmusic%40test.com&token=123456`);
 		expect(screen.getByText('Email verified. Log in to continue.')).toBeTruthy();
 	});
@@ -353,7 +364,7 @@ describe('Verify email screen', () => {
 		await waitFor(() =>
 			expect(screen.getByText("Check the code in the email, or send a new one if it's old.")).toBeTruthy(),
 		);
-		expect(router.back).not.toHaveBeenCalled();
+		expect(router.dismissTo).not.toHaveBeenCalled();
 	});
 
 	it('sends a new code and empties the code field', async () => {
@@ -377,7 +388,9 @@ describe('Verify email screen', () => {
 		await fireEvent.changeText(screen.getByLabelText('Code'), '123456');
 		await fireEvent.press(screen.getByRole('button', { name: 'Verify email' }));
 
-		await waitFor(() => expect(router.back).toHaveBeenCalled());
+		await waitFor(() =>
+			expect(router.dismissTo).toHaveBeenCalledWith({ pathname: '/login', params: { email: 'mia@test.com' } }),
+		);
 		expect(fetchMock.mock.calls[0][0]).toBe(`${SERVER}/auth/verify-email?email=mia%40test.com&token=123456`);
 	});
 });
