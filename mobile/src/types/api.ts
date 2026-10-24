@@ -21,6 +21,22 @@ export type User = {
 	updatedAt: string;
 };
 
+// Someone else's profile: public part, plus location and phone for friends only
+export type Profile = {
+	id: string;
+	displayName: string;
+	bio: string | null;
+	avatarUrl: string | null;
+	musicPreference: { genres?: string[] } | null;
+	location?: string | null;
+	phoneNumber?: string | null;
+};
+
+// What the user can change on their own profile (birthDate: 'YYYY-MM-DD')
+export type ProfileChanges = Partial<
+	Pick<User, 'displayName' | 'bio' | 'avatarUrl' | 'location' | 'phoneNumber' | 'musicPreference' | 'birthDate'>
+>;
+
 export type RoomKind = 'VOTE' | 'PLAYLIST';
 export type Visibility = 'PUBLIC' | 'PRIVATE';
 export type AccessPolicy = 'OPEN' | 'INVITE_ONLY' | 'RESTRICTED';
