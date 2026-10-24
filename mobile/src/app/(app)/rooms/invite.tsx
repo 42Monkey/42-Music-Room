@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { ApiError } from '@/api/errors';
 import { inviteMember, listMembers, removeMember, searchUsers } from '@/api/members';
+import { Avatar } from '@/components/Avatar';
 import { Screen } from '@/components/Screen';
 import { TextField } from '@/components/TextField';
 import { ErrorState } from '@/feedback/ErrorState';
@@ -169,13 +170,7 @@ function PersonRow({ person, invited, busy, last, onPress }: RowProps) {
 			accessibilityState={{ selected: invited, busy }}
 			style={({ pressed }) => [styles.row, !last && styles.rowLine, pressed && styles.pressed]}
 		>
-			{person.avatarUrl ? (
-				<Image source={{ uri: person.avatarUrl }} style={styles.avatar} />
-			) : (
-				<View style={[styles.avatar, styles.initial]}>
-					<Text style={styles.initialText}>{person.displayName.slice(0, 1).toUpperCase()}</Text>
-				</View>
-			)}
+			<Avatar name={person.displayName} url={person.avatarUrl} />
 			<Text style={styles.name} numberOfLines={1}>
 				{person.displayName}
 			</Text>
@@ -241,20 +236,6 @@ const styles = StyleSheet.create({
 	},
 	pressed: {
 		opacity: 0.6,
-	},
-	avatar: {
-		width: 40,
-		height: 40,
-		borderRadius: radius.pill,
-	},
-	initial: {
-		backgroundColor: colors.accentSoft,
-		alignItems: 'center',
-		justifyContent: 'center',
-	},
-	initialText: {
-		...type.headline,
-		color: colors.accentText,
 	},
 	name: {
 		...type.headline,
