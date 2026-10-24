@@ -1,7 +1,8 @@
 import { api, configureApi } from '@/api/client';
 import { ApiError, NetworkError } from '@/api/errors';
 import { createRoom, getRoom } from '@/api/rooms';
-import { inviteMember, listMembers, removeMember, searchUsers } from '@/api/members';
+import { inviteMember, listMembers, removeMember } from '@/api/members';
+import { searchUsers } from '@/api/users';
 import { addTrack, listTracks, nextTrack, removeTrack, reorderTrack, searchTracks, unvoteTrack, voteTrack } from '@/api/tracks';
 import { freshPreview } from '@/lib/deezer';
 import { failure, mockFetch, reply } from './helpers';

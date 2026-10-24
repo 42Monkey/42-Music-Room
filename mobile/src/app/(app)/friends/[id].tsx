@@ -16,7 +16,7 @@ function seenAsFor(profile: Profile, myId: string | undefined): SeenAs {
 	return 'location' in profile ? 'friend' : 'other';
 }
 
-// Someone's profile, opened from the friends tab; loaded fresh each time
+// Someone's profile, opened from the friends list or the search; loaded fresh each time
 export default function PersonScreen() {
 	const { id } = useLocalSearchParams<{ id: string }>();
 	const { user } = useSession();
@@ -37,7 +37,7 @@ export default function PersonScreen() {
 	}, [load]);
 
 	return (
-		<Screen back={{ label: 'Friends', onPress: () => router.back() }}>
+		<Screen back={{ label: 'Back', onPress: () => router.back() }}>
 			{error ? (
 				<ErrorState error={error} onRetry={load} />
 			) : profile === null ? (

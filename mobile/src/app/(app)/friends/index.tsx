@@ -76,6 +76,17 @@ export default function FriendsScreen() {
 	return (
 		<Screen
 			title="Friends"
+			right={
+				<Pressable
+					onPress={() => router.push('/friends/search')}
+					accessibilityRole="button"
+					accessibilityLabel="Find people"
+					hitSlop={12}
+					style={({ pressed }) => [styles.iconButton, pressed && styles.rowPressed]}
+				>
+					<Ionicons name="person-add" size={18} color={colors.ink} />
+				</Pressable>
+			}
 			refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.accent} />}
 		>
 			{error ? (
@@ -107,7 +118,7 @@ export default function FriendsScreen() {
 					{lists.friends.length === 0 ? (
 						<View style={styles.empty}>
 							<Text style={styles.emptyTitle}>No friends yet</Text>
-							<Text style={styles.emptyText}>People who accept your request, or whose request you accept, show up here.</Text>
+							<Text style={styles.emptyText}>Tap the person icon at the top to find people and send them a request.</Text>
 						</View>
 					) : (
 						<View style={styles.list}>
@@ -159,6 +170,14 @@ function PersonRow({ person, last, children }: RowProps) {
 }
 
 const styles = StyleSheet.create({
+	iconButton: {
+		width: 36,
+		height: 36,
+		borderRadius: 18,
+		backgroundColor: colors.surface,
+		alignItems: 'center',
+		justifyContent: 'center',
+	},
 	loading: {
 		marginTop: space.huge,
 	},
