@@ -2,15 +2,12 @@ import type { ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Avatar } from '@/components/Avatar';
+import { formatDate } from '@/components/DateField';
 import { Tag } from '@/components/Tag';
 import { genreLabel } from './genres';
+import { dayFromServer } from './profileForm';
 import { colors, radius, space, type } from '@/theme';
 import type { Profile, User } from '@/types/api';
-
-// Birth date comes back as midnight UTC, shown in UTC so it never moves a day
-function formatBirthDate(iso: string) {
-	return new Date(iso).toLocaleDateString(undefined, { timeZone: 'UTC', day: 'numeric', month: 'long', year: 'numeric' });
-}
 
 // Who is looking: me, a friend (sees contact details) or anyone else
 export type SeenAs = 'self' | 'friend' | 'other';
@@ -62,7 +59,7 @@ export function ProfileView({ user, seenAs }: Props) {
 			{self && (
 				<Section title="Private" hint="Only you" icon="lock-closed-outline">
 					<Row label="Email" value={user.email ?? null} />
-					<Row label="Birth date" value={user.birthDate ? formatBirthDate(user.birthDate) : null} last />
+					<Row label="Birth date" value={user.birthDate ? formatDate(dayFromServer(user.birthDate)) : null} last />
 				</Section>
 			)}
 		</View>

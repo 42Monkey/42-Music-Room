@@ -3,6 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { updateMe } from '@/api/users';
 import { Button } from '@/components/Button';
+import { DateField } from '@/components/DateField';
 import { Screen } from '@/components/Screen';
 import { TextField } from '@/components/TextField';
 import { ErrorText } from '@/feedback/ErrorText';
@@ -19,6 +20,10 @@ import {
 import { useSession } from '@/session/SessionProvider';
 import { colors, space, type } from '@/theme';
 import type { User } from '@/types/api';
+
+// Birth dates from 1900 to today, the picker opens on 2000 when there is none
+const OLDEST = new Date(1900, 0, 1);
+const START_AT = new Date(2000, 0, 1);
 
 // Edit my profile, opened as a sheet from the profile tab
 export default function EditProfileScreen() {
@@ -115,6 +120,17 @@ function EditProfileForm({ user }: { user: User }) {
 						keyboardType="phone-pad"
 						autoComplete="tel"
 						textContentType="telephoneNumber"
+					/>
+				</Group>
+
+				<Group title="Only you can see">
+					<DateField
+						label="Birth date (optional)"
+						value={form.birthDate}
+						onChange={(birthDate) => update({ birthDate })}
+						startAt={START_AT}
+						minimumDate={OLDEST}
+						maximumDate={new Date()}
 					/>
 				</Group>
 

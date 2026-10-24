@@ -6,6 +6,7 @@ export type ProfileForm = {
 	location: string;
 	phoneNumber: string;
 	genres: string[];
+	birthDate: Date | null;
 };
 
 export type ProfileFormErrors = Partial<Record<keyof typeof PROFILE_LIMITS, string>>;
@@ -34,6 +35,18 @@ export function isPhoneNumber(text: string): boolean {
 	return digits >= 6 && digits <= 15;
 }
 
+// Backend's birth date ("1995-05-15T00:00:00.000Z") as that day on the phone, whatever its time zone
+export function dayFromServer(iso: string): Date {
+	const [year, month, day] = iso.slice(0, 10).split('-').map(Number);
+	return new Date(year, month - 1, day);
+}
+
+// Picked day as the backend expects it: "1995-05-15"
+export function dayForServer(date: Date): string {
+	const pad = (n: number) => String(n).padStart(2, '0');
+	return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
 // Same genres, whatever the order they were picked in
 function sameGenres(a: string[], b: string[]): boolean {
 	return a.length === b.length && a.every((genre) => b.includes(genre));
@@ -47,6 +60,7 @@ export function profileFormFrom(user: User): ProfileForm {
 		location: user.location ?? '',
 		phoneNumber: user.phoneNumber ?? '',
 		genres: user.musicPreference?.genres ?? [],
+		birthDate: user.birthDate ? dayFromServer(user.birthDate) : null,
 	};
 }
 
@@ -79,5 +93,7 @@ export function validateProfileForm(form: ProfileForm, user: User): ProfileFormR
 	if (!sameGenres(form.genres, user.musicPreference?.genres ?? [])) {
 		changes.musicPreference = { ...user.musicPreference, genres: form.genres };
 	}
+	const birthDate = form.birthDate && dayForServer(form.birthDate);
+	if (birthDate !== (user.birthDate?.slice(0, 10) ?? null)) changes.birthDate = birthDate;
 	return { ok: true, changes };
 }
