@@ -122,6 +122,16 @@ export type UserSummary = {
 	avatarUrl: string | null;
 };
 
+// A request someone sent to the user, waiting to be accepted
+export type FriendRequest = {
+	id: string;
+	senderId: string;
+	receiverId: string;
+	status: 'PENDING' | 'ACCEPTED';
+	createdAt: string;
+	sender: UserSummary;
+};
+
 // One invited person of a room
 export type RoomMember = {
 	id: string;
