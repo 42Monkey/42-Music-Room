@@ -3,6 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Avatar } from '@/components/Avatar';
 import { Tag } from '@/components/Tag';
+import { genreLabel } from './genres';
 import { colors, radius, space, type } from '@/theme';
 import type { Profile, User } from '@/types/api';
 
@@ -39,7 +40,7 @@ export function ProfileView({ user, seenAs }: Props) {
 				{genres.length > 0 ? (
 					<View style={styles.genres}>
 						{genres.map((genre) => (
-							<Tag key={genre} label={genre} tone="accent" />
+							<Tag key={genre} label={genreLabel(genre)} tone="accent" />
 						))}
 					</View>
 				) : (

@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { updateMe } from '@/api/users';
@@ -7,6 +7,8 @@ import { Screen } from '@/components/Screen';
 import { TextField } from '@/components/TextField';
 import { ErrorText } from '@/feedback/ErrorText';
 import { useFeedback } from '@/feedback/FeedbackProvider';
+import { GenrePicker } from '@/profile/GenrePicker';
+import { genreChoices } from '@/profile/genres';
 import {
 	PROFILE_LIMITS,
 	profileFormFrom,
@@ -33,6 +35,7 @@ function EditProfileForm({ user }: { user: User }) {
 	const [errors, setErrors] = useState<ProfileFormErrors>({});
 	const [saving, setSaving] = useState(false);
 	const [saveError, setSaveError] = useState<unknown>(null);
+	const choices = useMemo(() => genreChoices(user.musicPreference?.genres ?? []), [user]);
 
 	const update = (changes: Partial<ProfileForm>) => {
 		setForm((current) => ({ ...current, ...changes }));
@@ -84,6 +87,12 @@ function EditProfileForm({ user }: { user: User }) {
 						maxLength={PROFILE_LIMITS.bio}
 						multiline
 						style={styles.bio}
+					/>
+					<GenrePicker
+						label="Music I like"
+						choices={choices}
+						value={form.genres}
+						onChange={(genres) => update({ genres })}
 					/>
 				</Group>
 
