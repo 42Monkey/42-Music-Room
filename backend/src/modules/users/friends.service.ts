@@ -20,7 +20,7 @@ export class FriendsService {
 			// serialize concurrent requests between the same pair of users,
 			// regardless of who is sender vs receiver in either call
 			const [a, b] = [currentUserId, receiverId].sort();
-			await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${a}), hashtext(${b}))`;
+			await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${a}), hashtext(${b}))`;
 		
 			const existing = await tx.friendship.findFirst({
 				where: {
