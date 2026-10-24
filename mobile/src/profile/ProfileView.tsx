@@ -45,16 +45,12 @@ export function ProfileView({ user, seenAs }: Props) {
 				)}
 			</Section>
 
-			<Section title="Contact" hint={self ? 'Friends only' : undefined} icon="people-outline">
-				{seenAs === 'other' ? (
-					<Text style={styles.notSet}>Only friends can see this</Text>
-				) : (
-					<>
-						<Row label="Location" value={user.location ?? null} />
-						<Row label="Phone" value={user.phoneNumber ?? null} last />
-					</>
-				)}
-			</Section>
+			{seenAs !== 'other' && (
+				<Section title="Contact" hint={self ? 'Friends only' : undefined} icon="people-outline">
+					<Row label="Location" value={user.location ?? null} />
+					<Row label="Phone" value={user.phoneNumber ?? null} last />
+				</Section>
+			)}
 
 			{self && (
 				<Section title="Private" hint="Only you" icon="lock-closed-outline">

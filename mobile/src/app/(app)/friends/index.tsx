@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState, type ReactNode } from 'react';
-import { ActivityIndicator, RefreshControl, StyleSheet, Text, View } from 'react-native';
-import { useFocusEffect } from 'expo-router';
+import { ActivityIndicator, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { router, useFocusEffect } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { acceptFriendRequest, listFriendRequests, listFriends } from '@/api/friends';
 import { Avatar } from '@/components/Avatar';
 import { Button } from '@/components/Button';
@@ -139,16 +140,21 @@ type RowProps = {
 	children?: ReactNode;
 };
 
-// One person: avatar or initial, name, and an action
+// One person: avatar or initial, name, and an action; tap to open their profile
 function PersonRow({ person, last, children }: RowProps) {
 	return (
-		<View style={[styles.row, !last && styles.rowLine]}>
+		<Pressable
+			onPress={() => router.push(`/friends/${person.id}`)}
+			accessibilityRole="button"
+			accessibilityLabel={`Open ${person.displayName}'s profile`}
+			style={({ pressed }) => [styles.row, !last && styles.rowLine, pressed && styles.rowPressed]}
+		>
 			<Avatar name={person.displayName} url={person.avatarUrl} />
 			<Text style={styles.name} numberOfLines={1}>
 				{person.displayName}
 			</Text>
-			{children}
-		</View>
+			{children ?? <Ionicons name="chevron-forward" size={16} color={colors.line} />}
+		</Pressable>
 	);
 }
 
@@ -187,6 +193,9 @@ const styles = StyleSheet.create({
 	rowLine: {
 		borderBottomWidth: StyleSheet.hairlineWidth,
 		borderBottomColor: colors.line,
+	},
+	rowPressed: {
+		opacity: 0.55,
 	},
 	name: {
 		...type.headline,
