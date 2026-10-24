@@ -9,15 +9,6 @@ Base app is ready in `mobile/` (Expo + Expo Router). Run `make`, scan the QR cod
 - errors: `<ErrorText error={error} />` under the action, `useFeedback()` for toasts and dialogs
 - tests in `mobile/tests/`, `npm test` in `mobile/`
 
-## Account (V.1)
-
-- account required on first launch
-- register / login with email + password (`POST /auth/register { email, password, displayName }`, `POST /auth/login { email, password }`)
-- login is refused until the email is verified (403 "Verify your email before logging in"), send them to the code screen
-- email validation: 6-digit code typed in the app (`GET /auth/verify-email?email=&token=`)
-- forgot password: `POST /auth/request-password-reset { email }`, then `POST /auth/reset-password { email, token, newPassword }`
-- codes: 5 wrong tries and the code is dead, they have to ask for a new one
-
 ## Google (V.1, V.5)
 
 The subject wants both: sign up / log in with Google, and link Google to an existing account.
@@ -43,4 +34,4 @@ The subject wants both: sign up / log in with Google, and link Google to an exis
 
 ## Tests (V.8)
 
-- tests for these screens
+- tests for these screens (`tests/profile.test.tsx`, `tests/friends.test.tsx`)
