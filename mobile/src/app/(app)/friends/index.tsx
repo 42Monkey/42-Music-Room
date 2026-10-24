@@ -15,7 +15,7 @@ type Lists = { friends: UserSummary[]; requests: FriendRequest[] };
 
 // Friends tab: requests waiting for me, then my friends (V.1)
 export default function FriendsScreen() {
-	const { toast, showError } = useFeedback();
+	const { showError } = useFeedback();
 	const [lists, setLists] = useState<Lists | null>(null);
 	const [error, setError] = useState<unknown>(null);
 	const [refreshing, setRefreshing] = useState(false);
@@ -64,7 +64,6 @@ export default function FriendsScreen() {
 					friends: [request.sender, ...current.friends],
 				},
 			);
-			toast(`You and ${request.sender.displayName} are now friends`, 'success');
 		} catch (err) {
 			showError(err, { as: 'toast' });
 			load();

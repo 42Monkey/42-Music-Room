@@ -19,7 +19,7 @@ import type { UserSummary } from '@/types/api';
 // Find people by name or email and send them a friend request; tap someone to see their profile
 export default function FindPeopleScreen() {
 	const { user } = useSession();
-	const { toast, showError } = useFeedback();
+	const { showError } = useFeedback();
 	// Where I stand with each person, from my friends and requests, then from what I do here
 	const [relations, setRelations] = useState<Record<string, Relation> | null>(null);
 	const [loadError, setLoadError] = useState<unknown>(null);
@@ -69,8 +69,6 @@ export default function FindPeopleScreen() {
 				next = await addFriend(person.id);
 			}
 			setRelations((current) => ({ ...current, [person.id]: next }));
-			if (next === 'friend') toast(`You and ${person.displayName} are now friends`, 'success');
-			else toast(`Request sent to ${person.displayName}`, 'success');
 		} catch (error) {
 			showError(error);
 		} finally {

@@ -27,7 +27,7 @@ type Person = { profile: Profile; seenAs: SeenAs; relation: Relation };
 export default function PersonScreen() {
 	const { id } = useLocalSearchParams<{ id: string }>();
 	const { user } = useSession();
-	const { toast, showError } = useFeedback();
+	const { showError } = useFeedback();
 	const [person, setPerson] = useState<Person | null>(null);
 	const [error, setError] = useState<unknown>(null);
 	const [busy, setBusy] = useState(false);
@@ -59,18 +59,15 @@ export default function PersonScreen() {
 	// Add or accept; accepting reloads the profile, now with contact details
 	const act = async () => {
 		if (!person) return;
-		const name = person.profile.displayName;
 		setBusy(true);
 		try {
 			if (person.relation === 'received') {
 				await acceptFriendRequest(person.profile.id);
-				toast(`You and ${name} are now friends`, 'success');
 				await load();
 			} else {
 				const next = await addFriend(person.profile.id);
 				if (next === 'friend') await load();
 				else setPerson({ ...person, relation: 'sent' });
-				toast(next === 'friend' ? `You and ${name} are already friends` : `Request sent to ${name}`, 'success');
 			}
 		} catch (err) {
 			showError(err);
