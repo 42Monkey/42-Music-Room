@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { RefreshControl } from 'react-native';
+import { Pressable, RefreshControl, StyleSheet } from 'react-native';
+import { router } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '@/components/Screen';
 import { useFeedback } from '@/feedback/FeedbackProvider';
 import { ProfileView } from '@/profile/ProfileView';
@@ -27,6 +29,17 @@ export default function ProfileScreen() {
 	return (
 		<Screen
 			title="Profile"
+			right={
+				<Pressable
+					onPress={() => router.push('/profile/edit')}
+					accessibilityRole="button"
+					accessibilityLabel="Edit profile"
+					hitSlop={12}
+					style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}
+				>
+					<Ionicons name="pencil" size={18} color={colors.ink} />
+				</Pressable>
+			}
 			refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.accent} />}
 		>
 			{/* Always there while logged in, the tabs only show after login */}
@@ -34,3 +47,17 @@ export default function ProfileScreen() {
 		</Screen>
 	);
 }
+
+const styles = StyleSheet.create({
+	iconButton: {
+		width: 36,
+		height: 36,
+		borderRadius: 18,
+		backgroundColor: colors.surface,
+		alignItems: 'center',
+		justifyContent: 'center',
+	},
+	pressed: {
+		opacity: 0.6,
+	},
+});
