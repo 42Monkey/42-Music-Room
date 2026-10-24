@@ -16,10 +16,12 @@ type Props = {
 	// Own profile comes with email and birth date, someone else's without
 	user: Profile & Partial<Pick<User, 'email' | 'birthDate'>>;
 	seenAs: SeenAs;
+	// Under the name, like Add friend
+	action?: ReactNode;
 };
 
 // A profile grouped by who can see each part (V.1), "who can see" hints on my own only
-export function ProfileView({ user, seenAs }: Props) {
+export function ProfileView({ user, seenAs, action }: Props) {
 	const genres = user.musicPreference?.genres ?? [];
 	const self = seenAs === 'self';
 
@@ -31,6 +33,7 @@ export function ProfileView({ user, seenAs }: Props) {
 					{user.displayName}
 				</Text>
 				{user.bio ? <Text style={styles.bio}>{user.bio}</Text> : null}
+				{action && <View style={styles.action}>{action}</View>}
 			</View>
 
 			<Section title={self ? 'Music I like' : 'Music'} hint={self ? 'Everyone' : undefined} icon="globe-outline">
@@ -118,6 +121,10 @@ const styles = StyleSheet.create({
 		...type.callout,
 		color: colors.muted,
 		textAlign: 'center',
+	},
+	action: {
+		alignSelf: 'stretch',
+		marginTop: space.sm,
 	},
 	sectionHeader: {
 		flexDirection: 'row',

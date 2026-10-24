@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { acceptFriendRequest, listFriendRequests, listFriends } from '@/api/friends';
@@ -34,15 +34,24 @@ export default function FindPeopleScreen() {
 			const known: Record<string, Relation> = {};
 			for (const friend of friends) known[friend.id] = 'friend';
 			for (const request of requests) known[request.senderId] = 'received';
-			setRelations(known);
+			// Requests sent during this visit are in no list, they stay 'sent'
+			setRelations((current) => {
+				for (const [personId, relation] of Object.entries(current ?? {})) {
+					if (relation === 'sent' && !known[personId]) known[personId] = 'sent';
+				}
+				return known;
+			});
 		} catch (error) {
 			setLoadError(error);
 		}
 	}, []);
 
-	useEffect(() => {
-		loadRelations();
-	}, [loadRelations]);
+	// Again when coming back from a profile, where they may have been added or accepted
+	useFocusEffect(
+		useCallback(() => {
+			loadRelations();
+		}, [loadRelations]),
+	);
 
 	const relationOf = (person: UserSummary): Relation => relations?.[person.id] ?? 'none';
 
