@@ -15,6 +15,8 @@ type Session = {
 	expired: boolean;
 	signIn: (tokens: Tokens) => Promise<void>;
 	signOut: () => Promise<void>;
+	refreshUser: () => Promise<void>;
+	updateUser: (user: User) => void;
 	retryRestore: () => Promise<void>;
 	dismissExpired: () => void;
 };
@@ -124,6 +126,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 	}, [serverUrl]);
 
 	const signOut = useCallback(() => endSession(false), [endSession]);
+	const refreshUser = useCallback(async () => {
+		setUser(await api.get<User>('/users/me'));
+	}, []);
+	const updateUser = useCallback((changed: User) => setUser(changed), []);
 	const dismissExpired = useCallback(() => setExpired(false), []);
 
 	const value = useMemo(
@@ -135,10 +141,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 			expired,
 			signIn,
 			signOut,
+			refreshUser,
+			updateUser,
 			retryRestore: restore,
 			dismissExpired,
 		}),
-		[status, user, token, restoreError, expired, signIn, signOut, restore, dismissExpired],
+		[status, user, token, restoreError, expired, signIn, signOut, refreshUser, updateUser, restore, dismissExpired],
 	);
 
 	return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
