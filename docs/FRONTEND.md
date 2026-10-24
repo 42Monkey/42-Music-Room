@@ -18,13 +18,15 @@
   - `(auth)/` logged out: login, register, verify-email, forgot-password, reset-password
   - `(app)/` the tabs: `rooms/`, `profile/`, `friends/`
   - `settings.tsx` backend address, reachable logged in or not
-- `src/api/` backend calls, one file per part (`auth.ts`, `users.ts`, `friends.ts` are empty, they're yours)
+- `src/api/` backend calls, one file per part
 - `src/components/` shared UI
 - `src/feedback/` errors, toasts, dialogs
 - `src/session/` who's logged in, tokens in the phone's encrypted storage
 - `src/settings/` backend address
 - `src/socket/` live connection (Socket.io)
 - `src/rooms/`, `src/player/` rooms, playlist editing, player
+- `src/profile/` profile layout (`ProfileView`), edit form rules, genres
+- `src/friends/` sending a friend request
 - `src/lib/` small helpers (location, Deezer, search as you type)
 - `src/types/api.ts` shapes of the backend answers, add yours there
 - `src/theme.ts` colours, spacing, text sizes
@@ -32,11 +34,11 @@
 
 ## Login and session
 
-- `useSession()`: `status` (`loading` / `signedOut` / `signedIn`), `user`, `signIn(tokens)`, `signOut()`
+- `useSession()`: `status` (`loading` / `signedOut` / `signedIn`), `user`, `signIn(tokens)`, `signOut()`, `refreshUser()`, `updateUser(user)`
 - after login: `signIn(answer)` with the backend's `{ accessToken, refreshToken }`. Tokens get saved, the app switches to the tabs by itself (`Stack.Protected` in `src/app/_layout.tsx`), nothing to navigate
 - a login lasts 15 min, the app renews it with the refresh token on its own. When renewing fails (7 days), "Session ended" dialog and back to login
 - `src/app/(auth)/login.tsx` is a temporary test login (account from `mobile/.env`). Replace the whole file, keep a link to `/settings`
-- after you edit your profile, `user` from `useSession()` is the one loaded at login. Reload it (`GET /users/me`) or keep the screen's own copy
+- `user` is loaded at login and is the one copy of my profile: after `PATCH /users/me`, `updateUser(answer)`; `refreshUser()` loads it again (pull to refresh on the profile tab)
 
 ## Backend calls
 
@@ -60,18 +62,19 @@
 
 - design "On air": raspberry `#E0306A`, ink `#1D1B34`, grey background `#F2F3F7`, white cards (radius 18), system font. Always from `theme.ts`, no raw colours
 - `Screen`: page frame with the big title, `back` (back link) or `onClose` (sheets), scrolls, leaves room for the tab bar
-- `Button` (`primary` / `secondary` / `quiet` / `danger`, `icon`, `loading`), `TextField` (label, error, hint), `SegmentedControl`, `Tag`, `TimeField`
+- `Button` (`primary` / `secondary` / `quiet` / `danger`, `icon`, `loading`), `TextField` (label, error, hint), `SegmentedControl`, `Tag`, `TimeField`, `DateField` (can stay empty), `Avatar` (photo or the initial)
 - icons: Ionicons (`@expo/vector-icons`)
 - forms open as sheets: `presentation: 'modal'` in the folder's `_layout.tsx` (see `rooms/_layout.tsx`)
-- avatar with the initial when there's no photo: `PersonRow` in `src/app/(app)/rooms/invite.tsx`
 - animations: Reanimated, short (150 to 300ms), `Easing.bezier(0.23, 1, 0.32, 1)`, skip them with `useReducedMotion()`
 - text: sentence case. The button says what happens ("Save profile"), the toast says the same ("Profile saved"), errors say what to do
+- toast only when nothing on screen shows it worked (a sheet that closes). A button that turns into "Sent" needs no toast
 - one short comment line before the key functions
 
 ## Reuse
 
-- `useSearch(find)` in `src/lib/useSearch.ts`: search as you type (waits for a pause, ignores late answers). Used by the track search and the invite sheet, works for the friends search too
-- `searchUsers(text)` in `src/api/members.ts` already calls `GET /users?search=`. Move it to `users.ts` if you want, just fix the import in `invite.tsx`
+- `useSearch(find)` in `src/lib/useSearch.ts`: search as you type (waits for a pause, ignores late answers). Used by the track search, the invite sheet and the friends search
+- `searchUsers(text)` in `src/api/users.ts` calls `GET /users?search=` (invite sheet, friends search)
+- `ProfileView` in `src/profile/` shows any profile: `seenAs` `self` / `friend` / `other` decides which parts appear
 
 ## Endpoints for your screens
 
@@ -87,22 +90,23 @@ Auth
 Users
 
 - `GET /users/me`, `PATCH /users/me { displayName, bio, avatarUrl, location, phoneNumber, musicPreference, birthDate }` (all optional)
-- `GET /users/:id` only returns what you're allowed to see (friends only / private fields hidden)
+- `GET /users/:id` only returns what you're allowed to see: friends-only fields are left out (not `null`) for non-friends
 - `GET /users?search=` by name or email, emails aren't sent back
 
 Friends
 
-- `POST /friends/request { receiverId }`, `GET /friends/requests` (received, waiting), `POST /friends/:id/accept`, `GET /friends`
+- `POST /friends/request { receiverId }`, `GET /friends/requests` (received, waiting), `POST /friends/:id/accept` (the sender's id), `GET /friends`
+- a request that already exists either way: 409 "Friendship relation already exists with status: PENDING" (or `ACCEPTED`). No decline, cancel or unfriend yet
 
 ## Live updates
 
 - `useSocket()`: `socket`, `connected` (the On air badge)
 - only rooms use it: `joinRoom` / `leaveRoom`, the server sends `tracks:updated` (the whole list) and `playback:next` (`{ track, startedAt }`)
-- profile and friends don't need it
+- profile and friends don't use it: the friends tab reloads each time it opens
 
 ## Tests
 
-- Jest + React Native Testing Library, in `tests/`, one file per part (add `auth.test.tsx`, `profile.test.tsx`, `friends.test.tsx`)
+- Jest + React Native Testing Library, in `tests/`, one file per part
 - `renderWithProviders(<MyScreen />)` from `tests/helpers.tsx`: same providers as the app
 - fake backend: `const fetchMock = mockFetch()` then `routeFetch(fetchMock, { '/users/me': reply(200, me) })`
 - logged in: `await tokenStorage.set('token', SERVER)` + a `/users/me` route
