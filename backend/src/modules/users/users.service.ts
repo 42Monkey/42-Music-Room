@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import type { User } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { FriendsService } from './friends.service';
 import { UpdateProfileDto } from './dto/update.dto';
@@ -6,61 +7,73 @@ import { UpdateProfileDto } from './dto/update.dto';
 @Injectable()
 export class UsersService {
   constructor(
-	private prisma: PrismaService,
-	private friendsService: FriendsService,
+    private prisma: PrismaService,
+    private friendsService: FriendsService,
   ) {}
 
-	async findById(id: string) {
-		const user = await this.prisma.user.findUnique({ where: { id } });
-			if (!user) {
-				throw new NotFoundException('User not found');
-			}
-		return user;
-	}
+  async findById(id: string) {
+    const user = await this.prisma.user.findUnique({ where: { id } });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    return user;
+  }
 
-	async getOwnProfile(userId: string) {
-		const user = await this.findById(userId);
-		const { passwordHash, emailVerificationToken, passwordResetToken, ...safe } = user;
-		return safe;
-	}
+  private toOwnProfile(user: User) {
+    const {
+      passwordHash,
+      emailVerificationToken,
+      emailVerificationAttempts,
+      passwordResetToken,
+      passwordResetExpiresAt,
+      passwordResetAttempts,
+      tokenVersion,
+      ...safe
+    } = user;
+    return safe;
+  }
 
-	async getProfileForViewer(targetUserId: string, viewerId: string) {
-		const target = await this.findById(targetUserId);
+  async getOwnProfile(userId: string) {
+    return this.toOwnProfile(await this.findById(userId));
+  }
 
-		const isSelf = targetUserId === viewerId;
-		const isFriend = isSelf
-			? false
-			: await this.friendsService.areFriends(targetUserId, viewerId);
+  async getProfileForViewer(targetUserId: string, viewerId: string) {
+    const target = await this.findById(targetUserId);
 
-		const publicFields = {
-			id: target.id,
-			displayName: target.displayName,
-			bio: target.bio,
-			avatarUrl: target.avatarUrl,
-			musicPreference: target.musicPreference,
-		};
+    if (targetUserId === viewerId) {
+      return { ...this.toOwnProfile(target), friendship: 'self' as const };
+    }
 
-		if (isSelf) {
-			return this.getOwnProfile(viewerId);
-		}
+    const friendship = await this.friendsService.getFriendshipState(
+      viewerId,
+      targetUserId,
+    );
 
-		if (isFriend) {
-			return {
-				...publicFields,
-				location: target.location,
-				phoneNumber: target.phoneNumber,
-			};
-		}
-	return publicFields;
-	}
+    const publicFields = {
+      id: target.id,
+      displayName: target.displayName,
+      bio: target.bio,
+      avatarUrl: target.avatarUrl,
+      musicPreference: target.musicPreference,
+    };
 
-	async updateProfile(userId: string, dto: UpdateProfileDto) {
-		const updated = await this.prisma.user.update({
-			where: { id: userId },
-			data: dto,
-		});
+    if (friendship === 'friend') {
+      return {
+        ...publicFields,
+        location: target.location,
+        phoneNumber: target.phoneNumber,
+        friendship,
+      };
+    }
 
-		const { passwordHash, emailVerificationToken, passwordResetToken, ...safe } = updated;
-		return safe;
-	}
+    return { ...publicFields, friendship };
+  }
+
+  async updateProfile(userId: string, dto: UpdateProfileDto) {
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data: dto,
+    });
+    return this.toOwnProfile(updated);
+  }
 }
