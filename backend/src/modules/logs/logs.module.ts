@@ -5,8 +5,8 @@ import { LogsService } from './logs.service';
 import { AdminGuard } from './guards/admin.guard';
 
 @Module({
-	imports: [AuthModule],
-	controllers: [LogsController],
-	providers: [LogsService, AdminGuard],
+  imports: [AuthModule],
+  controllers: [LogsController],
+  providers: [LogsService, AdminGuard],
 })
 export class LogsModule {}
