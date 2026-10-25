@@ -44,13 +44,14 @@ model User {
   email                     String?  @unique
   passwordHash              String?
   emailVerified             Boolean  @default(false)
-  emailVerificationToken    String?  @unique
+  emailVerificationToken    String?
   emailVerificationAttempts Int       @default(0)
-  passwordResetToken        String?  @unique
+  passwordResetToken        String?
   passwordResetExpiresAt    DateTime?
   passwordResetAttempts     Int       @default(0)
+  tokenVersion              Int       @default(0)
   displayName               String
-  role                      Role     @default(USER)
+  role                      Role      @default(USER)
 
   // profile tiers
   bio                       String?
@@ -181,6 +182,7 @@ model Friendship {
   status     FriendshipStatus @default(PENDING)
   createdAt  DateTime         @default(now())
   updatedAt  DateTime         @updatedAt
+  pairKey    String?          @unique
 
   @@unique([senderId, receiverId])
 }
