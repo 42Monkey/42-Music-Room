@@ -12,19 +12,26 @@ import { GoogleStrategy } from './strategies/google.strategy';
 import { WsJwtGuard } from './guards/ws-jwt.guard';
 
 @Module({
-	imports: [
-		PassportModule.register({ defaultStrategy: 'jwt' }),
-		PrismaModule,
-		JwtModule.registerAsync({
-			imports: [ConfigModule],
-			inject: [ConfigService],
-			useFactory: (config: ConfigService) => ({
-				secret: config.get<string>('JWT_SECRET'),
-			}),
-		}),
-	],
-	controllers: [AuthController],
-	providers: [AuthService, JwtStrategy, JwtAuthGuard, MailService, GoogleStrategy, WsJwtGuard],
-	exports: [AuthService, JwtAuthGuard, PassportModule, JwtModule, WsJwtGuard],
+  imports: [
+    PassportModule.register({ defaultStrategy: 'jwt' }),
+    PrismaModule,
+    JwtModule.registerAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        secret: config.get<string>('JWT_SECRET'),
+      }),
+    }),
+  ],
+  controllers: [AuthController],
+  providers: [
+    AuthService,
+    JwtStrategy,
+    JwtAuthGuard,
+    MailService,
+    GoogleStrategy,
+    WsJwtGuard,
+  ],
+  exports: [AuthService, JwtAuthGuard, PassportModule, JwtModule, WsJwtGuard],
 })
 export class AuthModule {}
