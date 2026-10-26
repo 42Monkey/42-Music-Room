@@ -39,47 +39,47 @@ services:
 
   # uncomment when backend is done and ready for k6 tests
   # also uncomment in nginx.conf
-  # api-2:
-  #   build:
-  #     context: ./backend
-  #     dockerfile: Dockerfile
-  #   container_name: music-api-2
-  #   restart: unless-stopped
-  #   env_file: ./backend/.env
-  #   ports:
-  #   - "5556:5555"
-  #   depends_on:
-  #     postgres:
-  #       condition: service_healthy
-  #     redis:
-  #       condition: service_started
-  #   healthcheck:
-  #     test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/health"]
-  #     interval: 5s
-  #     timeout: 5s
-  #     retries: 5
-  #     start_period: 5s
+  api-2:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: music-api-2
+    restart: unless-stopped
+    env_file: ./backend/.env
+    ports:
+    - "5556:5555"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
 
-  # api-3:
-  #   build:
-  #     context: ./backend
-  #     dockerfile: Dockerfile
-  #   container_name: music-api-3
-  #   restart: unless-stopped
-  #   env_file: ./backend/.env
-  #   ports:
-  #   - "5557:5555"
-  #   depends_on:
-  #     postgres:
-  #       condition: service_healthy
-  #     redis:
-  #       condition: service_started
-  #   healthcheck:
-  #     test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/health"]
-  #     interval: 5s
-  #     timeout: 5s
-  #     retries: 5
-  #     start_period: 5s
+  api-3:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: music-api-3
+    restart: unless-stopped
+    env_file: ./backend/.env
+    ports:
+    - "5557:5555"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
 
   postgres:
     image: postgres:15-alpine

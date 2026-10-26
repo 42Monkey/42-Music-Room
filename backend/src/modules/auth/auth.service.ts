@@ -307,10 +307,23 @@ export class AuthService {
     return this.issueTokens(user.id, user.email, user.tokenVersion);
   }
 
-  async googleLinking(
+async googleLinking(
     userId: string,
     googleProfile: { googleId: string; email: string },
   ) {
+    const userExistingGoogle = await this.prisma.googleAccount.findFirst({
+      where: { userId },
+    });
+
+    if (userExistingGoogle) {
+      if (userExistingGoogle.googleId === googleProfile.googleId) {
+        return { message: 'Google account already linked to this profile' };
+      }
+      throw new ConflictException(
+        'Your account is already linked to another Google account',
+      );
+    }
+
     const existingLink = await this.prisma.googleAccount.findUnique({
       where: { googleId: googleProfile.googleId },
     });

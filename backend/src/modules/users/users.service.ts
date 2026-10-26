@@ -19,7 +19,7 @@ export class UsersService {
     return user;
   }
 
-  private toOwnProfile(user: User) {
+  private toOwnProfile(user: User, googleLinked = false) {
     const {
       passwordHash,
       emailVerificationToken,
@@ -30,18 +30,26 @@ export class UsersService {
       tokenVersion,
       ...safe
     } = user;
-    return safe;
+    return { ...safe, googleLinked };
+  }
+
+  private async isGoogleLinked(userId: string): Promise<boolean> {
+    const count = await this.prisma.googleAccount.count({ where: { userId } });
+    return count > 0;
   }
 
   async getOwnProfile(userId: string) {
-    return this.toOwnProfile(await this.findById(userId));
+    const user = await this.findById(userId);
+    const googleLinked = await this.isGoogleLinked(userId);
+    return this.toOwnProfile(user, googleLinked);
   }
 
   async getProfileForViewer(targetUserId: string, viewerId: string) {
     const target = await this.findById(targetUserId);
 
     if (targetUserId === viewerId) {
-      return { ...this.toOwnProfile(target), friendship: 'self' as const };
+      const googleLinked = await this.isGoogleLinked(viewerId);
+      return { ...this.toOwnProfile(target, googleLinked), friendship: 'self' as const };
     }
 
     const friendship = await this.friendsService.getFriendshipState(
@@ -74,6 +82,7 @@ export class UsersService {
       where: { id: userId },
       data: dto,
     });
-    return this.toOwnProfile(updated);
+    const googleLinked = await this.isGoogleLinked(userId);
+    return this.toOwnProfile(updated, googleLinked);
   }
 }
