@@ -22,3 +22,6 @@ export const resendVerification = (email: string) => api.post<Message>('/auth/re
 
 // Log in or sign up with the id token Google gave the app, same tokens as login
 export const googleLogin = (idToken: string) => api.post<Tokens>('/auth/google/mobile', { idToken });
+
+// Links a Google account to the logged-in user, next time it can log in with Google
+export const linkGoogle = (idToken: string) => api.post<Message>('/auth/google/link', { idToken });

@@ -99,6 +99,11 @@ const AUTH_RULES: Record<string, ErrorDescription> = {
 		title: 'Google sign-in failed',
 		message: "Google didn't share your email. Try again, or use another account.",
 	},
+	// Linking from the profile: one Google account belongs to one user
+	'This Google account is already linked to a different account': {
+		title: 'Google account already used',
+		message: 'This Google account is linked to someone else. Use another Google account.',
+	},
 };
 
 // Backend answers: one message per status code

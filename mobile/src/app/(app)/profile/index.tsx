@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '@/components/Screen';
 import { useFeedback } from '@/feedback/FeedbackProvider';
+import { LinkGoogle } from '@/profile/LinkGoogle';
 import { ProfileView } from '@/profile/ProfileView';
 import { useSession } from '@/session/SessionProvider';
 import { colors } from '@/theme';
@@ -44,6 +45,7 @@ export default function ProfileScreen() {
 		>
 			{/* Always there while logged in, the tabs only show after login */}
 			{user && <ProfileView user={user} seenAs="self" />}
+			<LinkGoogle />
 		</Screen>
 	);
 }
