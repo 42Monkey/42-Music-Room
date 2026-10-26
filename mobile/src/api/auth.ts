@@ -19,3 +19,6 @@ export const verifyEmail = (email: string, code: string) =>
 
 // Sends a new verification code (same answer whether the account exists or not)
 export const resendVerification = (email: string) => api.post<Message>('/auth/resend-verification', { email });
+
+// Log in or sign up with the id token Google gave the app, same tokens as login
+export const googleLogin = (idToken: string) => api.post<Tokens>('/auth/google/mobile', { idToken });
