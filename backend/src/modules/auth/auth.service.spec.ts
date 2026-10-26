@@ -1,4 +1,4 @@
-import { BadRequestException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, UnauthorizedException, ConflictException } from '@nestjs/common';
 import { AuthService } from './auth.service';
 
 describe('AuthService', () => {
@@ -11,6 +11,7 @@ describe('AuthService', () => {
       update: jest.fn(),
     },
     googleAccount: {
+      findFirst: jest.fn(),
       findUnique: jest.fn(),
       create: jest.fn(),
     },
@@ -21,7 +22,7 @@ describe('AuthService', () => {
   };
   const jwt = {
     signAsync: jest.fn().mockResolvedValue('signed-token'),
-    verifyAsync: jest.fn(), // NEW
+    verifyAsync: jest.fn(),
   };
   const config = { get: jest.fn().mockReturnValue('15m') };
 
@@ -33,7 +34,7 @@ describe('AuthService', () => {
     service = new AuthService(prisma as any, jwt as any, mail as any, config as any);
   });
 
-  describe('resendVerification (#1)', () => {
+  describe('resendVerification', () => {
     const unverifiedUser = {
       id: 'u1',
       email: 'mia@test.com',
@@ -106,7 +107,7 @@ describe('AuthService', () => {
     });
   });
 
-  describe('requestPasswordReset (#7)', () => {
+  describe('requestPasswordReset', () => {
     it('check the attempts counter is reset to 0 when a new reset code is issued', async () => {
       prisma.user.findUnique.mockResolvedValue({
         id: 'u1',
@@ -133,7 +134,7 @@ describe('AuthService', () => {
     });
   });
 
-  describe('googleLogin (#4)', () => {
+  describe('googleLogin', () => {
     const profile = {
       googleId: 'g1',
       email: 'mia@test.com',
@@ -215,8 +216,7 @@ describe('AuthService', () => {
     });
   });
 
-  // NEW BLOCK
-  describe('session invalidation (#6)', () => {
+  describe('session invalidation', () => {
     const email = 'mia@test.com';
     const resettableUser = {
       id: 'u1',
@@ -345,6 +345,66 @@ describe('AuthService', () => {
         expect.objectContaining({ type: 'refresh', tv: 2 }),
         expect.anything(),
       );
+    });
+  });
+  describe('googleLinking', () => {
+    const userId = 'u1';
+    const googleProfile = { googleId: 'g-123', email: 'mia@test.com' };
+
+    it('check linking succeeds when the Google account is completely unlinked', async () => {
+      // 1. User has no existing Google account linked
+      prisma.googleAccount.findFirst = jest.fn().mockResolvedValue(null);
+      // 2. Google ID is not linked to anyone else
+      prisma.googleAccount.findUnique = jest.fn().mockResolvedValue(null);
+      prisma.googleAccount.create = jest.fn().mockResolvedValue({ id: 'link-1', userId, googleId: googleProfile.googleId });
+
+      const result = await service.googleLinking(userId, googleProfile);
+
+      expect(result).toEqual({ message: 'Google account linked successfully' });
+      expect(prisma.googleAccount.create).toHaveBeenCalledWith({
+        data: { googleId: googleProfile.googleId, userId },
+      });
+    });
+
+    it('check linking returns success message if already linked to this exact profile (idempotency)', async () => {
+      // User already has this exact Google ID linked
+      prisma.googleAccount.findFirst = jest.fn().mockResolvedValue({ userId, googleId: googleProfile.googleId });
+
+      const result = await service.googleLinking(userId, googleProfile);
+
+      expect(result).toEqual({ message: 'Google account already linked to this profile' });
+      expect(prisma.googleAccount.create).not.toHaveBeenCalled();
+    });
+
+    it('check linking throws 409 Conflict if user already has a DIFFERENT Google account linked', async () => {
+      // User already has a different Google ID linked
+      prisma.googleAccount.findFirst = jest.fn().mockResolvedValue({ userId, googleId: 'other-google-id' });
+
+      await expect(
+        service.googleLinking(userId, googleProfile),
+      ).rejects.toThrow(ConflictException);
+
+      try {
+        await service.googleLinking(userId, googleProfile);
+      } catch (err: any) {
+        expect(err.message).toBe('Your account is already linked to another Google account');
+      }
+    });
+
+    it('check linking throws 409 Conflict if the Google account is already linked to a different user', async () => {
+      prisma.googleAccount.findFirst = jest.fn().mockResolvedValue(null);
+      // Google ID is already taken by another user ID ('u2')
+      prisma.googleAccount.findUnique = jest.fn().mockResolvedValue({ userId: 'u2', googleId: googleProfile.googleId });
+
+      await expect(
+        service.googleLinking(userId, googleProfile),
+      ).rejects.toThrow(ConflictException);
+
+      try {
+        await service.googleLinking(userId, googleProfile);
+      } catch (err: any) {
+        expect(err.message).toBe('This Google account is already linked to a different account');
+      }
     });
   });
 });

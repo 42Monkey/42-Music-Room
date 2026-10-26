@@ -18,7 +18,7 @@ jest.mock('@nestjs/swagger', () => ({
 }));
 
 describe('Auth DTOs', () => {
-  describe('LoginDto (#2)', () => {
+  describe('LoginDto', () => {
     it('check a short wrong password is not rejected for its length', async () => {
       const dto = Object.assign(new LoginDto(), {
         email: 'mia@test.com',
@@ -36,7 +36,7 @@ describe('Auth DTOs', () => {
     });
   });
 
-  describe('RegisterDto (#5)', () => {
+  describe('RegisterDto', () => {
     const base = { email: 'mia@test.com', password: 'password123' };
 
     it('check a 50 character display name is accepted', async () => {
@@ -65,7 +65,7 @@ describe('Auth DTOs', () => {
     });
   });
 
-  describe('Email normalization (#3)', () => {
+  describe('Email normalization', () => {
     const cases: [string, new () => { email: string }, object][] = [
       ['LoginDto', LoginDto, { password: 'x' }],
       [
