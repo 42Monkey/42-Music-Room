@@ -37,6 +37,34 @@ describe('describeError', () => {
 		expect(result.action).toBe('login');
 	});
 
+	it('says the email or password is wrong, not that the session ended', () => {
+		const result = describeError(new ApiError(401, 'Invalid credentials'));
+
+		expect(result.title).toBe('Wrong email or password');
+		expect(result.message).toBe('Check your email and password, then try again.');
+		expect(result.action).toBeUndefined();
+	});
+
+	it('says the email already has an account and how to get in', () => {
+		const result = describeError(new ApiError(409, 'Email already in use'));
+
+		expect(result.title).toBe('Email already registered');
+		expect(result.message).toContain('Log in instead');
+	});
+
+	it('says a wrong or dead code can be replaced by a new one', () => {
+		const result = describeError(new ApiError(400, 'Invalid or expired verification code'));
+
+		expect(result.title).toBe("That code didn't work");
+		expect(result.message).toContain('send a new one');
+	});
+
+	it('words a wrong reset code the same way', () => {
+		const result = describeError(new ApiError(400, 'Invalid or expired reset code'));
+
+		expect(result.title).toBe("That code didn't work");
+	});
+
 	it('shows the server message for a refused action', () => {
 		const result = describeError(new ApiError(403, 'Only the owner can manage members'));
 

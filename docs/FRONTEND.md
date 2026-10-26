@@ -35,7 +35,7 @@
 - `useSession()`: `status` (`loading` / `signedOut` / `signedIn`), `user`, `signIn(tokens)`, `signOut()`
 - after login: `signIn(answer)` with the backend's `{ accessToken, refreshToken }`. Tokens get saved, the app switches to the tabs by itself (`Stack.Protected` in `src/app/_layout.tsx`), nothing to navigate
 - a login lasts 15 min, the app renews it with the refresh token on its own. When renewing fails (7 days), "Session ended" dialog and back to login
-- `src/app/(auth)/login.tsx` is a temporary test login (account from `mobile/.env`). Replace the whole file, keep a link to `/settings`
+- `src/app/(auth)/login.tsx` is the login screen (email + password), it keeps a link to `/settings` so the backend address can be changed before login. The seeded test accounts log in there
 - after you edit your profile, `user` from `useSession()` is the one loaded at login. Reload it (`GET /users/me`) or keep the screen's own copy
 
 ## Backend calls
