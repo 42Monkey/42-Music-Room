@@ -1,0 +1,53 @@
+<!doctype html>
+<!--
+	Google sign-in redirect page for the Music Room app.
+	Hosted on GitHub Pages: https://olegpreed.github.io/music-room-google/
+	Google only redirects to fixed https addresses, and the app's address (exp://... in Expo Go)
+	changes at every `make`. Google sends the id token here, this page passes it on to the app.
+	No external scripts: the token never leaves this page except to go back to the app.
+-->
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<meta name="referrer" content="no-referrer">
+	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
+	<title>Music Room</title>
+	<style>
+		body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+			font-family: -apple-system, system-ui, sans-serif; background: #fff; color: #1a1a1a; text-align: center; }
+		main { padding: 24px; max-width: 360px; }
+		a { display: none; margin-top: 16px; padding: 14px 24px; border-radius: 12px;
+			background: #E0306A; color: #fff; text-decoration: none; font-weight: 600; }
+	</style>
+</head>
+<body>
+	<main>
+		<p id="text">Going back to Music Room…</p>
+		<a id="back">Back to Music Room</a>
+	</main>
+	<script>
+		// Only send the token back to the app: Expo Go (exp://) or the built app (musicroom://)
+		var APP_ADDRESS = /^(exp|exps|musicroom):\/\//;
+
+		var fragment = location.hash.slice(1);
+		var app = null;
+		try {
+			app = JSON.parse(new URLSearchParams(fragment).get('state')).app;
+		} catch (e) {
+			app = null;
+		}
+
+		if (typeof app === 'string' && APP_ADDRESS.test(app)) {
+			var target = app + '#' + fragment;
+			var back = document.getElementById('back');
+			back.href = target;
+			// Some browsers block the automatic jump to an app, the button always works
+			setTimeout(function () { back.style.display = 'inline-block'; }, 1000);
+			location.replace(target);
+		} else {
+			document.getElementById('text').textContent = "This page only works when you sign in from the Music Room app.";
+		}
+	</script>
+</body>
+</html>
