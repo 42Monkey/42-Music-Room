@@ -41,14 +41,17 @@ export class DeezerService {
         throw new NotFoundException('Track not found on Deezer');
       }
 
-      return {
-        providerId: String(data.id),
-        title: data.title,
-        artist: data.artist?.name ?? 'Unknown artist',
-        durationMs: (data.duration ?? 0) * 1000,
-      };
-    } catch (err) {
-      if (err instanceof NotFoundException) throw err;
+		return {
+			providerId: String(data.id),
+			title: data.title,
+			artist: data.artist?.name ?? 'Unknown artist',
+			durationMs: (data.duration ?? 0) * 1000,
+			previewUrl: data.preview,
+			albumCoverUrl: data.album?.cover_medium,
+		};
+	} catch (err) {
+		if (err instanceof NotFoundException)
+			throw err;
 
       throw new BadGatewayException('Could not reach Deezer');
     }

@@ -78,10 +78,11 @@ export class RoomsGateway implements OnGatewayDisconnect {
   }
 
   @OnEvent('room.playback.next')
-  handlePlaybackNext(payload: { roomId: string; currentTrack: unknown }) {
-    this.server
-      .to(this.channel(payload.roomId))
-      .emit('playback:next', payload.currentTrack);
+  handlePlaybackNext(payload: { roomId: string; currentTrack: unknown; startedAt: Date | null }) {
+    this.server.to(this.channel(payload.roomId)).emit('playback:next', {
+      track: payload.currentTrack,
+      startedAt: payload.startedAt,
+    });
   }
 
   private async logAction(

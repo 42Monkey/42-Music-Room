@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import * as argon2 from 'argon2';
 import * as crypto from 'crypto';
+import { OAuth2Client } from 'google-auth-library';
 import { User } from '@prisma/client';
 import { JwtService, JwtSignOptions } from '@nestjs/jwt';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -20,6 +21,7 @@ import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class AuthService {
+  private googleClient = new OAuth2Client();
   private readonly MAX_CODE_ATTEMPTS = 5;
 
   constructor(
@@ -280,8 +282,6 @@ export class AuthService {
         },
       });
     } else if (!user.emailVerified) {
-      // Never let Google log into an unverified account that someone else
-      // may have pre-registered: clear their password and kill their sessions.
       user = await this.prisma.user.update({
         where: { id: user.id },
         data: {
@@ -307,7 +307,7 @@ export class AuthService {
     return this.issueTokens(user.id, user.email, user.tokenVersion);
   }
 
-async googleLinking(
+  async googleLinking(
     userId: string,
     googleProfile: { googleId: string; email: string },
   ) {
@@ -387,6 +387,30 @@ async googleLinking(
     }
 
     return payload.userId;
+  }
+
+  async verifyGoogleIdToken(idToken: string): Promise<{ googleId: string; email: string; displayName: string }> {
+    try {
+      const clientId = this.config.get<string>('GOOGLE_CLIENT_ID');
+      const ticket = await this.googleClient.verifyIdToken({
+        idToken,
+        audience: clientId ? [clientId] : undefined,
+      });
+      const payload = ticket.getPayload();
+      if (!payload || !payload.sub || !payload.email) {
+        throw new UnauthorizedException('Invalid Google token payload');
+      }
+      return {
+        googleId: payload.sub,
+        email: payload.email,
+        displayName: payload.name || payload.email.split('@')[0],
+      };
+    } catch (err) {
+      if (err instanceof UnauthorizedException) {
+        throw err;
+      }
+      throw new UnauthorizedException('Invalid or expired Google ID token');
+    }
   }
 
   private async registerFailedEmailVerificationAttempt(

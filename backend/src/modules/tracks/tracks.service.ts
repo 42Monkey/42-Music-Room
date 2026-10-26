@@ -28,9 +28,7 @@ export class TracksService {
       where: { roomId_providerId: { roomId, providerId: deezerTrackId } },
     });
     if (existing) {
-      throw new ConflictException(
-        'This track has already been added to the room',
-      );
+      throw new ConflictException('This track has already been added to the room');
     }
 
     const metadata = await this.deezer.getTrackById(deezerTrackId);
@@ -48,6 +46,7 @@ export class TracksService {
         title: metadata.title,
         artist: metadata.artist,
         durationMs: metadata.durationMs,
+        previewUrl: metadata.previewUrl,
         position,
       },
     });
@@ -126,25 +125,31 @@ export class TracksService {
     await this.broadcastTracks(roomId);
   }
 
-  async getQueue(roomId: string) {
+  async getQueue(roomId: string, userId?: string) {
     const room = await this.prisma.room.findUnique({ where: { id: roomId } });
     if (!room) {
       throw new NotFoundException('Room not found');
     }
 
-    const where = { roomId, playedAt: null };
-
-    if (room.kind === 'PLAYLIST') {
-      return this.prisma.track.findMany({
-        where,
-        orderBy: { position: 'asc' },
-      });
+    // Played tracks leave the queue
+    const tracks = await this.prisma.track.findMany({
+      where: { roomId, playedAt: null },
+      orderBy:
+        room.kind === 'PLAYLIST'
+          ? { position: 'asc' }
+          : [{ score: 'desc' }, { addedAt: 'asc' }],
+    });
+    if (!userId) {
+      return tracks;
     }
 
-    return this.prisma.track.findMany({
-      where,
-      orderBy: [{ score: 'desc' }, { addedAt: 'asc' }],
+    // Tells the caller which tracks they already voted for
+    const votes = await this.prisma.vote.findMany({
+      where: { userId, track: { roomId } },
+      select: { trackId: true },
     });
+    const voted = new Set(votes.map((vote) => vote.trackId));
+    return tracks.map((track) => ({ ...track, votedByMe: voted.has(track.id) }));
   }
 
   async reorderTrack(
@@ -187,9 +192,7 @@ export class TracksService {
   }
 
   private async checkRoomTrack(roomId: string, trackId: string) {
-    const track = await this.prisma.track.findUnique({
-      where: { id: trackId },
-    });
+    const track = await this.prisma.track.findUnique({ where: { id: trackId } });
     if (!track || track.roomId !== roomId) {
       throw new NotFoundException('Track not found in this room');
     }
@@ -202,10 +205,7 @@ export class TracksService {
         where: { roomId },
         orderBy: { position: 'asc' },
       });
-      return {
-        lowerPosition: null,
-        upperPosition: firstTrack?.position ?? null,
-      };
+      return { lowerPosition: null, upperPosition: firstTrack?.position ?? null };
     }
 
     const referenceTrack = await this.checkRoomTrack(roomId, afterTrackId);
@@ -241,6 +241,7 @@ export class TracksService {
       throw new ForbiddenException('Only the room owner can trigger playback');
     }
 
+    const startedAt = new Date();
     const currentTrack = await this.prisma.$transaction(async (tx) => {
       const nextTrack = await tx.track.findFirst({
         where: {
@@ -263,18 +264,22 @@ export class TracksService {
 
       await tx.room.update({
         where: { id: roomId },
-        data: { currentTrackId: nextTrack?.id ?? null },
+        data: {
+          currentTrackId: nextTrack?.id ?? null,
+          currentTrackStartedAt: nextTrack ? startedAt : null,
+        },
       });
 
       return nextTrack;
     });
 
-    this.events.emit('room.playback.next', {
-      roomId,
+    const playing = {
       currentTrack: currentTrack ?? null,
-    });
+      startedAt: currentTrack ? startedAt : null,
+    };
+    this.events.emit('room.playback.next', { roomId, ...playing });
     await this.broadcastTracks(roomId);
 
-    return { currentTrack: currentTrack ?? null };
+    return playing;
   }
 }

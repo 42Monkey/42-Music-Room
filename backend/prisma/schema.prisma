@@ -59,6 +59,7 @@ model User {
   location                  String? // friends-only
   phoneNumber               String? // friends-only
   musicPreference           Json?   // public
+  birthDate                 DateTime? // private (V.1)
 
   createdAt                 DateTime @default(now())
   updatedAt                 DateTime @updatedAt
@@ -108,6 +109,8 @@ model Room {
 
   currentTrackId String? @unique
   currentTrack   Track?  @relation("CurrentTrack", fields: [currentTrackId], references: [id], onDelete: SetNull)
+  // When the current track started, so every phone plays the same second
+  currentTrackStartedAt DateTime?
 }
 
 // V.2.1 / V.2.3
@@ -129,6 +132,7 @@ model Track {
   title      String
   artist     String
   durationMs Int?
+  previewUrl String?
 
   score    Int     @default(0)
   position String?

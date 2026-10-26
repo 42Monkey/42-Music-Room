@@ -4,6 +4,7 @@ import {
   Get,
   Param,
   Patch,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -12,6 +13,7 @@ import {
   ApiBody,
   ApiOperation,
   ApiParam,
+  ApiQuery,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
@@ -32,11 +34,19 @@ interface AuthenticatedUser {
 export class UsersController {
   constructor(private usersService: UsersService) {}
 
+  @Get()
+  @ApiOperation({ summary: 'Search users by display name or email' })
+  @ApiQuery({ name: 'search', required: false, description: 'Query string to search users' })
+  @ApiResponse({ status: 200, description: 'List of matching users with public profile fields only' })
+  searchUsers(@Query('search') search?: string) {
+      return this.usersService.searchUsers(search);
+  }
+
   @Get('me')
   @ApiOperation({ summary: 'Get the authenticated user profile' })
   @ApiResponse({ status: 200, description: 'Current user profile' })
   getOwnProfile(@Req() req: Request & { user: AuthenticatedUser }) {
-    return this.usersService.getOwnProfile(req.user.id);
+      return this.usersService.getOwnProfile(req.user.id);
   }
 
   @Patch('me')

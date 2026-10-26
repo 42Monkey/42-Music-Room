@@ -26,6 +26,7 @@ import { LoginDto } from './dto/login.dto';
 import { EmailDto } from './dto/email.dto';
 import { RequestPasswordResetDto } from './dto/request-password-reset.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { GoogleMobileAuthDto } from './dto/google-mobile.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { GoogleAuthGuard } from './guards/google-auth.guard';
@@ -35,12 +36,6 @@ import { ResendVerificationDto } from './dto/resend-verification.dto';
 interface AuthenticatedUser {
   id: string;
   email: string | null;
-}
-
-interface GoogleUser {
-  email: string;
-  displayName: string;
-  googleId: string;
 }
 
 @ApiTags('Auth')
@@ -133,41 +128,31 @@ export class AuthController {
   @ApiOperation({ summary: 'Start Google OAuth login' })
   googleAuth() {}
 
-  @Get('google/link')
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth('access-token')
-  @ApiOperation({ summary: 'Generate Google account linking URL' })
-  async googleLink(
-    @Req() req: Request & { user: AuthenticatedUser },
-    @Res() res: Response,
-  ) {
-    const state = await this.authService.createGoogleLinkState(req.user.id);
-    const clientId = this.config.get<string>('GOOGLE_CLIENT_ID');
-    const callbackUrl = this.config.get<string>('GOOGLE_CALLBACK_URL');
-    const url = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${callbackUrl}&response_type=code&scope=email%20profile&state=${state}`;
-    res.redirect(url);
+  @Throttle({ default: { limit: 15, ttl: 60000 } })
+  @Post('google/mobile')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Login or signup with Google ID token from mobile app' })
+  @ApiBody({ type: GoogleMobileAuthDto })
+  @ApiResponse({ status: 200, description: 'Access and refresh tokens issued' })
+  async googleMobileLogin(@Body() dto: GoogleMobileAuthDto) {
+    const googleProfile = await this.authService.verifyGoogleIdToken(dto.idToken);
+    return this.authService.googleLogin(googleProfile);
   }
 
-  @Get('google/callback')
-  @UseGuards(GoogleAuthGuard)
-  @ApiOperation({ summary: 'Handle Google OAuth callback' })
-  @ApiQuery({
-    name: 'state',
-    required: false,
-    description: 'OAuth state payload',
-  })
-  async googleCallback(
-    @Req() req: Request & { user: GoogleUser },
-    @Res() res: Response,
-    @Query('state') state?: string,
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  @Post('google/link')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Link Google account to authenticated user using Google ID token' })
+  @ApiBody({ type: GoogleMobileAuthDto })
+  @ApiResponse({ status: 200, description: 'Google account linked successfully' })
+  async googleMobileLink(
+    @Req() req: Request & { user: AuthenticatedUser },
+    @Body() dto: GoogleMobileAuthDto,
   ) {
-    if (state) {
-      const userId = await this.authService.verifyGoogleLinkState(state);
-      const result = await this.authService.googleLinking(userId, req.user);
-      return res.json(result);
-    }
-    const tokens = await this.authService.googleLogin(req.user);
-    res.json(tokens);
+    const googleProfile = await this.authService.verifyGoogleIdToken(dto.idToken);
+    return this.authService.googleLinking(req.user.id, googleProfile);
   }
 
   @Throttle({ default: { limit: 5, ttl: 60000 } })
