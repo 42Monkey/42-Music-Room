@@ -11,10 +11,10 @@ services:
     depends_on:
       api-1:
         condition: service_healthy
-      # api-2:
-      #   condition: service_healthy
-      # api-3:
-      #   condition: service_healthy
+      api-2:
+        condition: service_healthy
+      api-3:
+        condition: service_healthy
 
   api-1:
     build:
