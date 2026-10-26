@@ -71,11 +71,35 @@ const ROOM_RULES: Record<string, ErrorDescription> = {
 	},
 };
 
+// Login and account errors, worded for people (a wrong password is not an ended session)
+const AUTH_RULES: Record<string, ErrorDescription> = {
+	'Invalid credentials': {
+		title: 'Wrong email or password',
+		message: 'Check your email and password, then try again.',
+	},
+	'Email already in use': {
+		title: 'Email already registered',
+		message: 'An account already uses this email. Log in instead, or reset your password if you forgot it.',
+	},
+	// Same answer for a wrong code and one killed after 5 tries: point to both ways out
+	'Invalid or expired verification code': {
+		title: "That code didn't work",
+		message: "Check the code in the email, or send a new one if it's old.",
+	},
+	'Invalid or expired reset code': {
+		title: "That code didn't work",
+		message: "Check the code in the email, or send a new one if it's old.",
+	},
+};
+
 // Backend answers: one message per status code
 function describeApi(error: ApiError): ErrorDescription {
 	const { status } = error;
 	if (typeof error.serverMessage === 'string' && ROOM_RULES[error.serverMessage]) {
 		return ROOM_RULES[error.serverMessage];
+	}
+	if (typeof error.serverMessage === 'string' && AUTH_RULES[error.serverMessage]) {
+		return AUTH_RULES[error.serverMessage];
 	}
 	if (status === 400) return { title: 'Check your input', message: serverText(error, 'Some fields are not valid.') };
 	if (status === 401) {

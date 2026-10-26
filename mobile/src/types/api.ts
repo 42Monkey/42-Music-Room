@@ -139,3 +139,29 @@ export type RoomMember = {
 	userId: string;
 	user: UserSummary;
 };
+
+// Plain answer of the backend ("Password reset successfully")
+export type Message = {
+	message: string;
+};
+
+// Body of POST /auth/register
+export type RegisterInput = {
+	email: string;
+	password: string;
+	displayName: string;
+};
+
+// Answer of POST /auth/register (no tokens: the email must be verified first)
+export type RegisteredUser = {
+	id: string;
+	email: string;
+	displayName: string;
+};
+
+// Body of POST /auth/reset-password, token is the 6-digit code from the email
+export type ResetPasswordInput = {
+	email: string;
+	token: string;
+	newPassword: string;
+};
