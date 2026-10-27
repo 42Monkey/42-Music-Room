@@ -69,6 +69,20 @@ jest.mock('expo-audio', () => {
 	};
 });
 
+// Every image and font is asset 1 in tests. jest-expo still mocks the registry
+// at its pre-0.88 path, so we register that asset ourselves for icon fonts
+require('react-native').AssetRegistry.registerAsset({
+	__packager_asset: true,
+	fileSystemLocation: '/assets',
+	httpServerLocation: '/assets',
+	width: 1,
+	height: 1,
+	scales: [1],
+	hash: 'test',
+	name: 'test',
+	type: 'ttf',
+});
+
 // Gestures: the library's own stand-ins
 require('react-native-gesture-handler/jestSetup');
 

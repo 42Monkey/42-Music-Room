@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { StyleSheet, Text, TextInput, View } from 'react-native';
+import { StyleSheet, Text, View, type TextInputInstance } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { login } from '@/api/auth';
 import { ApiError } from '@/api/errors';
@@ -20,7 +20,7 @@ export default function LoginScreen() {
 	const [errors, setErrors] = useState<LoginFormErrors>({});
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState<unknown>(null);
-	const passwordRef = useRef<TextInput>(null);
+	const passwordRef = useRef<TextInputInstance>(null);
 	const { email: verifiedEmail } = useLocalSearchParams<{ email?: string }>();
 
 	// Back from email verification: email filled in, cursor on the password

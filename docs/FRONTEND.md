@@ -1,6 +1,6 @@
 # Frontend
 
-`mobile/`: Expo SDK 57 + Expo Router, iOS and Android only, runs in Expo Go.
+`mobile/`: Expo SDK 58 + Expo Router, iOS and Android only, runs in Expo Go.
 
 ## Run
 
@@ -9,8 +9,9 @@
 - tunnel mode: `r`, fast refresh and `j` never reach the app. Reload by hand: Cmd+R in the simulator (Cmd+D then Reload), shake a phone
 - every `make` gives the backend a new public address, so you're logged out once (a login only goes back to the server that issued it)
 - if the tunnel dies (Mac asleep, Wi-Fi drop), the app says it can't reach the server: restart `make`
-- new package: `npx expo install <name>` in `mobile/` (picks the version that fits SDK 57), then restart `make`
+- new package: `npx expo install <name>` in `mobile/` (picks the version that fits SDK 58), then restart `make`
 - checks: `npm test` and `npx tsc --noEmit` in `mobile/`
+- Node 22.13+: `make` downloads it into `.node/` when the machine's is older. To run `npm`/`npx` yourself with it: `export PATH="$PWD/.node/bin:$PATH"` at the root
 
 ## Folders
 

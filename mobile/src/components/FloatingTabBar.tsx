@@ -18,7 +18,7 @@ export function tabBarSpace(safeBottom: number): number {
 export const TabBarSpaceContext = createContext(0);
 
 // Floating pill tab bar: active tab shows its icon, the others their name
-export function FloatingTabBar({ state, descriptors, navigation, insets }: BottomTabBarProps) {
+export function FloatingTabBar({ state, descriptors, emitter, navigateToTab, insets }: BottomTabBarProps) {
 	return (
 		<View accessibilityRole="tablist" style={[styles.bar, { bottom: barBottom(insets.bottom) }]}>
 			{state.routes.map((route, index) => {
@@ -28,8 +28,8 @@ export function FloatingTabBar({ state, descriptors, navigation, insets }: Botto
 
 				// Same tab: let the screen react, no navigation
 				const open = () => {
-					const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
-					if (!focused && !event.defaultPrevented) navigation.navigate(route.name, route.params);
+					const event = emitter.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
+					if (!focused && !event.defaultPrevented) navigateToTab(route.key);
 				};
 
 				return (

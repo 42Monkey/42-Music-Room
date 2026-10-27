@@ -179,14 +179,16 @@ describe('FloatingTabBar', () => {
 				{ options: { title: titles[route.name], tabBarIcon: () => <Text testID={`icon-${route.name}`}>icon</Text> } },
 			]),
 		);
-		const navigation = { emit: jest.fn(() => ({ defaultPrevented: false })), navigate: jest.fn() };
+		const emitter = { emit: jest.fn(() => ({ defaultPrevented: false })) };
+		const navigateToTab = jest.fn();
 		const props = {
 			state: { index: activeIndex, routes },
 			descriptors,
-			navigation,
+			emitter,
+			navigateToTab,
 			insets: { top: 0, bottom: 34, left: 0, right: 0 },
 		};
-		return { props: props as unknown as BottomTabBarProps, navigation };
+		return { props: props as unknown as BottomTabBarProps, emitter, navigateToTab };
 	}
 
 	it('shows the active tab with its icon and the others as labels', async () => {
@@ -206,22 +208,22 @@ describe('FloatingTabBar', () => {
 	});
 
 	it('opens another tab when pressed', async () => {
-		const { props, navigation } = tabBarProps(0);
+		const { props, navigateToTab } = tabBarProps(0);
 		await render(<FloatingTabBar {...props} />);
 
 		await fireEvent.press(screen.getByRole('tab', { name: 'Friends' }));
 
-		expect(navigation.navigate).toHaveBeenCalledWith('friends', undefined);
+		expect(navigateToTab).toHaveBeenCalledWith('friends-key');
 	});
 
 	it('stays put when the active tab is pressed again', async () => {
-		const { props, navigation } = tabBarProps(0);
+		const { props, emitter, navigateToTab } = tabBarProps(0);
 		await render(<FloatingTabBar {...props} />);
 
 		await fireEvent.press(screen.getByRole('tab', { name: 'Rooms' }));
 
-		expect(navigation.emit).toHaveBeenCalledWith(expect.objectContaining({ type: 'tabPress', target: 'rooms-key' }));
-		expect(navigation.navigate).not.toHaveBeenCalled();
+		expect(emitter.emit).toHaveBeenCalledWith(expect.objectContaining({ type: 'tabPress', target: 'rooms-key' }));
+		expect(navigateToTab).not.toHaveBeenCalled();
 	});
 });
 
