@@ -182,12 +182,20 @@ describe('Find people', () => {
 });
 
 describe('Person screen', () => {
-	const FRIEND_PROFILE = { ...MIA, bio: 'Vinyl only', musicPreference: null, location: 'Lyon', phoneNumber: null };
-	const PUBLIC_PROFILE = { ...ANA, bio: null, musicPreference: null };
+	// As GET /users/:id answers: contact details for friends only, plus where I stand with them
+	const FRIEND_PROFILE = {
+		...MIA,
+		bio: 'Vinyl only',
+		musicPreference: null,
+		location: 'Lyon',
+		phoneNumber: null,
+		friendship: 'friend',
+	};
+	const PUBLIC_PROFILE = { ...ANA, bio: null, musicPreference: null, friendship: 'none' };
 
 	it('shows a friend their contact details', async () => {
 		(useLocalSearchParams as jest.Mock).mockReturnValue({ id: 'u2' });
-		serve({ 'GET /users/u2': reply(200, FRIEND_PROFILE), 'GET /friends/requests': reply(200, []) });
+		serve({ 'GET /users/u2': reply(200, FRIEND_PROFILE) });
 
 		await renderWithProviders(<PersonScreen />);
 
@@ -198,10 +206,16 @@ describe('Person screen', () => {
 
 	it('adds someone who is not a friend yet', async () => {
 		(useLocalSearchParams as jest.Mock).mockReturnValue({ id: 'u4' });
-		serve({
-			'GET /users/u4': reply(200, PUBLIC_PROFILE),
-			'GET /friends/requests': reply(200, []),
-			'POST /friends/request': reply(201, {}),
+		let sent = false;
+		fetchMock.mockImplementation(async (url: string, init: { method: string }) => {
+			const path = url.replace(/^https?:\/\/[^/]+/, '');
+			if (path === '/users/me') return reply(200, ME);
+			if (init.method === 'POST' && path === '/friends/request') {
+				sent = true;
+				return reply(201, {});
+			}
+			if (path === '/users/u4') return reply(200, { ...PUBLIC_PROFILE, friendship: sent ? 'sent' : 'none' });
+			return reply(404, { statusCode: 404, message: 'Not found' });
 		});
 		await renderWithProviders(<PersonScreen />);
 
@@ -209,11 +223,22 @@ describe('Person screen', () => {
 		await fireEvent.press(await screen.findByRole('button', { name: 'Add friend' }));
 
 		expect(await screen.findByText('Request sent')).toBeTruthy();
+		expect(calls('POST', '/friends/request')).toHaveLength(1);
+	});
+
+	it('still shows the request as sent when coming back later', async () => {
+		(useLocalSearchParams as jest.Mock).mockReturnValue({ id: 'u4' });
+		serve({ 'GET /users/u4': reply(200, { ...PUBLIC_PROFILE, friendship: 'sent' }) });
+
+		await renderWithProviders(<PersonScreen />);
+
+		expect(await screen.findByText('Request sent')).toBeTruthy();
+		expect(screen.queryByRole('button', { name: 'Add friend' })).toBeNull();
 	});
 
 	it('accepts their request and then shows their contact details', async () => {
 		(useLocalSearchParams as jest.Mock).mockReturnValue({ id: 'u3' });
-		const leoPublic = { ...LEO, bio: null, musicPreference: null };
+		const leoPublic = { ...LEO, bio: null, musicPreference: null, friendship: 'received' };
 		let accepted = false;
 		fetchMock.mockImplementation(async (url: string) => {
 			const path = url.replace(/^https?:\/\/[^/]+/, '');
@@ -222,8 +247,9 @@ describe('Person screen', () => {
 				accepted = true;
 				return reply(200, {});
 			}
-			if (path === '/friends/requests') return reply(200, accepted ? [] : [REQUEST_FROM_LEO]);
-			if (path === '/users/u3') return reply(200, accepted ? { ...leoPublic, location: 'Porto', phoneNumber: null } : leoPublic);
+			if (path === '/users/u3') {
+				return reply(200, accepted ? { ...leoPublic, location: 'Porto', phoneNumber: null, friendship: 'friend' } : leoPublic);
+			}
 			return reply(404, { statusCode: 404, message: 'Not found' });
 		});
 		await renderWithProviders(<PersonScreen />);

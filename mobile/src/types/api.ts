@@ -17,9 +17,13 @@ export type User = {
 	phoneNumber: string | null;
 	musicPreference: { genres?: string[] } | null;
 	birthDate: string | null;
+	googleLinked: boolean;
 	createdAt: string;
 	updatedAt: string;
 };
+
+// Where the logged-in user stands with someone ('sent' / 'received': a request waiting)
+export type Friendship = 'self' | 'friend' | 'sent' | 'received' | 'none';
 
 // Someone else's profile: public part, plus location and phone for friends only
 export type Profile = {
@@ -30,6 +34,7 @@ export type Profile = {
 	musicPreference: { genres?: string[] } | null;
 	location?: string | null;
 	phoneNumber?: string | null;
+	friendship: Friendship;
 };
 
 // What the user can change on their own profile (birthDate: 'YYYY-MM-DD')

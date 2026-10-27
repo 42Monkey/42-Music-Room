@@ -11,7 +11,7 @@ import { mockFetch, renderWithProviders, reply, routeFetch, SERVER } from './hel
 jest.mock('@/auth/google', () => ({ getGoogleIdToken: jest.fn() }));
 
 const getIdToken = getGoogleIdToken as jest.Mock;
-const ME = { id: 'u1', displayName: 'Mia', email: 'mia@work.com', emailVerified: true };
+const ME = { id: 'u1', displayName: 'Mia', email: 'mia@work.com', emailVerified: true, googleLinked: false };
 let fetchMock: jest.Mock;
 
 beforeEach(async () => {
@@ -23,9 +23,19 @@ beforeEach(async () => {
 	getIdToken.mockReset();
 });
 
-// Logged in as ME, the link route answers with `linked`
-function serve(linked: unknown) {
-	routeFetch(fetchMock, { '/users/me': reply(200, ME), '/auth/google/link': linked });
+// Logged in as ME, the link route answers with `linked`; after a successful link
+// GET /users/me says googleLinked, like the backend
+function serve(linked: ReturnType<typeof reply>) {
+	let done = false;
+	fetchMock.mockImplementation(async (url: string) => {
+		const path = url.replace(/^https?:\/\/[^/]+/, '');
+		if (path === '/users/me') return reply(200, { ...ME, googleLinked: done });
+		if (path === '/auth/google/link') {
+			done = linked.ok;
+			return linked;
+		}
+		return reply(404, { statusCode: 404, message: `No fake route for ${path}` });
+	});
 }
 
 const linkCalls = () => fetchMock.mock.calls.filter(([url]) => url.endsWith('/auth/google/link'));
@@ -50,7 +60,7 @@ describe('linkGoogle', () => {
 });
 
 describe('Link Google account', () => {
-	it('links the Google account and says so', async () => {
+	it('links the Google account, says so, then shows it as linked', async () => {
 		getIdToken.mockResolvedValue('google-token');
 		serve(reply(200, { message: 'Google account linked successfully' }));
 		await renderWithProviders(<ProfileScreen />);
@@ -58,17 +68,17 @@ describe('Link Google account', () => {
 		await pressLink();
 
 		expect(await screen.findByText('Google account linked')).toBeTruthy();
+		expect(await screen.findByText('Linked, you can log in with Google')).toBeTruthy();
+		expect(screen.queryByRole('button', { name: 'Link Google account' })).toBeNull();
 		expect(JSON.parse(linkCalls()[0][1].body)).toEqual({ idToken: 'google-token' });
 	});
 
-	it('says when this Google account was already linked to me', async () => {
-		getIdToken.mockResolvedValue('google-token');
-		serve(reply(200, { message: 'Google account already linked to this profile' }));
+	it('shows Google as linked, with no button, when it already is', async () => {
+		routeFetch(fetchMock, { '/users/me': reply(200, { ...ME, googleLinked: true }) });
 		await renderWithProviders(<ProfileScreen />);
 
-		await pressLink();
-
-		expect(await screen.findByText('This Google account is already linked to you')).toBeTruthy();
+		expect(await screen.findByText('Linked, you can log in with Google')).toBeTruthy();
+		expect(screen.queryByRole('button', { name: 'Link Google account' })).toBeNull();
 	});
 
 	it("explains when the Google account is someone else's", async () => {

@@ -14,9 +14,8 @@ export type SeenAs = 'self' | 'friend' | 'other';
 
 type Props = {
 	// Own profile comes with email and birth date, someone else's without
-	user: Profile & Partial<Pick<User, 'email' | 'birthDate'>>;
+	user: Omit<Profile, 'friendship'> & Partial<Pick<User, 'email' | 'birthDate'>>;
 	seenAs: SeenAs;
-	// Under the name, like Add friend
 	action?: ReactNode;
 };
 
