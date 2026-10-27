@@ -24,7 +24,7 @@ services:
     restart: unless-stopped
     env_file: ./backend/.env
     ports:
-    - "5555:5555"
+    - "5600:5555"
     depends_on:
       postgres:
         condition: service_healthy
@@ -47,7 +47,7 @@ services:
     restart: unless-stopped
     env_file: ./backend/.env
     ports:
-    - "5556:5555"
+    - "5601:5555"
     depends_on:
       postgres:
         condition: service_healthy
@@ -68,7 +68,7 @@ services:
     restart: unless-stopped
     env_file: ./backend/.env
     ports:
-    - "5557:5555"
+    - "5602:5555"
     depends_on:
       postgres:
         condition: service_healthy
