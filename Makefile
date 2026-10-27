@@ -58,16 +58,16 @@ fclean:
 	@printf "$(GREEN)✅ Clean state restored$(RESET)\n"
 
 prisma:
-	@printf "$(BLUE)🛠️  Syncing the database schema...$(RESET)\n"
-	@sleep 3
-	@docker compose exec api-1 npx prisma db push
-	@printf "$(GREEN)✅ Schema ready$(RESET)\n"
+	docker compose exec api-1 npx prisma db push
 
 studio:
 	docker compose exec api-1 npx prisma studio
 
 k6:
 	docker compose run --rm k6 run /scripts/load-test.js
+
+throttle:
+	docker compose run --rm k6 run /scripts/throttle-test.js
 
 seed:
 	@printf "$(BLUE)🌱 Seeding test accounts...$(RESET)\n"
@@ -129,7 +129,7 @@ mobile:
 	@cd mobile && npx expo start --tunnel
 
 test:
-	npm --prefix backend test
+	npm --prefix backend test --verbose
 
 status:
 	@echo ""
@@ -143,20 +143,19 @@ status:
 re: fclean up prisma
 
 help:
-	@printf "\nAvailable commands:\n"
-	@printf "  make         - Start everything: backend, database, public link, app QR code\n"
-	@printf "  make up      - Build and start containers in the background\n"
-	@printf "  make down    - Stop everything\n"
-	@printf "  make logs    - Follow container logs\n"
-	@printf "  make status  - Show container, network and volume status\n"
-	@printf "  make banner  - Show the links and test logins again\n"
-	@printf "  make prisma  - Push Prisma schema changes to the database\n"
-	@printf "  make seed    - Seed the database with the test users\n"
-	@printf "  make studio  - Open Prisma Studio (database GUI)\n"
-	@printf "  make test    - Run the backend unit tests\n"
-	@printf "  make k6      - Run the k6 load tests\n"
-	@printf "  make clean   - Stop everything and remove volumes and dependencies\n"
-	@printf "  make fclean  - Deep clean (stop, volumes, orphaned containers, app dependencies)\n"
-	@printf "  make re      - Full reset and restart\n\n"
+	@echo "\nAvailable commands:"
+	@echo "  make up       - Build and start containers in the background"
+	@echo "  make down     - Stop containers"
+	@echo "  make logs     - Follow container logs"
+	@echo "  make status   - Show detailed container, network, and volume status"
+	@echo "  make prisma   - Push Prisma schema changes to the database"
+	@echo "  make studio   - Open Prisma Studio database GUI"
+	@echo "  make seed     - Seed the database with initial users"
+	@echo "  make test     - Run backend logical/unit tests"
+	@echo "  make k6       - Run the k6 load-testing suite"
+	@echo "  make throttle - Run the throttle testing suite"
+	@echo "  make clean    - Stop containers and remove build artifacts & volumes"
+	@echo "  make fclean   - Deep clean (stop, remove volumes, and orphaned containers)"
+	@echo "  make re       - Full reset and restart (fclean -> up -> prisma)\n"
 
 .PHONY: all check up down logs clean fclean prisma studio seed tunnel google banner mobile status help re test k6

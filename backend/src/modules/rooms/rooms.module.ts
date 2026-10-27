@@ -9,9 +9,9 @@ import { AccessPolicyGuard } from './guards/access.guard';
 import { RoomsGateway } from './rooms.gateway';
 
 @Module({
-	imports: [PrismaModule, AuthModule],
-	controllers: [RoomsController, MembersController],
-	providers: [RoomsService, MembersService, AccessPolicyGuard, RoomsGateway],
-	exports: [RoomsService, MembersService, AccessPolicyGuard],
+  imports: [PrismaModule, AuthModule],
+  controllers: [RoomsController, MembersController],
+  providers: [RoomsService, MembersService, AccessPolicyGuard, RoomsGateway],
+  exports: [RoomsService, MembersService, AccessPolicyGuard],
 })
 export class RoomsModule {}

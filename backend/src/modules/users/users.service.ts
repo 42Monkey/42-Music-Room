@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import type { User } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { FriendsService } from './friends.service';
 import { UpdateProfileDto } from './dto/update.dto';
@@ -6,91 +7,113 @@ import { UpdateProfileDto } from './dto/update.dto';
 @Injectable()
 export class UsersService {
   constructor(
-	private prisma: PrismaService,
-	private friendsService: FriendsService,
+    private prisma: PrismaService,
+    private friendsService: FriendsService,
   ) {}
 
-	async findById(id: string) {
-		const user = await this.prisma.user.findUnique({ where: { id } });
-			if (!user) {
-				throw new NotFoundException('User not found');
-			}
-		return user;
-	}
+  async findById(id: string) {
+    const user = await this.prisma.user.findUnique({ where: { id } });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    return user;
+  }
 
-	async getOwnProfile(userId: string) {
-		const user = await this.findById(userId);
-		const { passwordHash, emailVerificationToken, passwordResetToken, ...safe } = user;
-		return safe;
-	}
+  private toOwnProfile(user: User, googleLinked = false) {
+    const {
+      passwordHash,
+      emailVerificationToken,
+      emailVerificationAttempts,
+      passwordResetToken,
+      passwordResetExpiresAt,
+      passwordResetAttempts,
+      tokenVersion,
+      ...safe
+    } = user;
+    return { ...safe, googleLinked };
+  }
 
-	async getProfileForViewer(targetUserId: string, viewerId: string) {
-		const target = await this.findById(targetUserId);
+  private async isGoogleLinked(userId: string): Promise<boolean> {
+    const count = await this.prisma.googleAccount.count({ where: { userId } });
+    return count > 0;
+  }
 
-		const isSelf = targetUserId === viewerId;
-		const isFriend = isSelf
-			? false
-			: await this.friendsService.areFriends(targetUserId, viewerId);
+  async getOwnProfile(userId: string) {
+    const user = await this.findById(userId);
+    const googleLinked = await this.isGoogleLinked(userId);
+    return this.toOwnProfile(user, googleLinked);
+  }
 
-		const publicFields = {
-			id: target.id,
-			displayName: target.displayName,
-			bio: target.bio,
-			avatarUrl: target.avatarUrl,
-			musicPreference: target.musicPreference,
-		};
+  async getProfileForViewer(targetUserId: string, viewerId: string) {
+    const target = await this.findById(targetUserId);
 
-		if (isSelf) {
-			return this.getOwnProfile(viewerId);
-		}
+    if (targetUserId === viewerId) {
+      const googleLinked = await this.isGoogleLinked(viewerId);
+      return { ...this.toOwnProfile(target, googleLinked), friendship: 'self' as const };
+    }
 
-		if (isFriend) {
-			return {
-				...publicFields,
-				location: target.location,
-				phoneNumber: target.phoneNumber,
-			};
-		}
-	return publicFields;
-	}
+    const friendship = await this.friendsService.getFriendshipState(
+      viewerId,
+      targetUserId,
+    );
 
-	async updateProfile(userId: string, dto: UpdateProfileDto) {
-		const { birthDate, ...rest } = dto;
-		const data: Record<string, any> = { ...rest };
-		if (birthDate !== undefined) {
-			data.birthDate = birthDate ? new Date(birthDate) : null;
-		}
+    const publicFields = {
+      id: target.id,
+      displayName: target.displayName,
+      bio: target.bio,
+      avatarUrl: target.avatarUrl,
+      musicPreference: target.musicPreference,
+    };
 
-		const updated = await this.prisma.user.update({
-			where: { id: userId },
-			data,
-		});
+    if (friendship === 'friend') {
+      return {
+        ...publicFields,
+        location: target.location,
+        phoneNumber: target.phoneNumber,
+        friendship,
+      };
+    }
 
-		const { passwordHash, emailVerificationToken, passwordResetToken, ...safe } = updated;
-		return safe;
-	}
+    return { ...publicFields, friendship };
+  }
 
-	async searchUsers(query?: string, limit = 20) {
-		const trimmed = query?.trim();
-		const where = trimmed
-			? {
-					OR: [
-						{ displayName: { contains: trimmed, mode: 'insensitive' as const } },
-						{ email: { contains: trimmed, mode: 'insensitive' as const } },
-					],
-			  }
-			: {};
+  async updateProfile(userId: string, dto: UpdateProfileDto) {
+    const { birthDate, ...rest } = dto;
+    const data: Record<string, any> = { ...rest };
+    if (birthDate !== undefined) {
+      data.birthDate = birthDate ? new Date(birthDate) : null;
+    }
 
-		return this.prisma.user.findMany({
-			where,
-			take: limit,
-			select: {
-				id: true,
-				displayName: true,
-				avatarUrl: true,
-				bio: true,
-				musicPreference: true,
-			},
-		});
-	}
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data,
+    });
+
+    const googleLinked = await this.isGoogleLinked(userId);
+    return this.toOwnProfile(updated, googleLinked);
+  }
+
+  async searchUsers(query?: string, limit = 20) {
+    const trimmed = query?.trim();
+    const where = trimmed
+      ? {
+          OR: [
+            { displayName: { contains: trimmed, mode: 'insensitive' as const } },
+            { email: { contains: trimmed, mode: 'insensitive' as const } },
+          ],
+        }
+      : {};
+
+    return this.prisma.user.findMany({
+      where,
+      take: limit,
+      select: {
+        id: true,
+        displayName: true,
+        avatarUrl: true,
+        bio: true,
+        musicPreference: true,
+      },
+    });
+  }
 }

@@ -2,21 +2,29 @@
 set -e
 
 BASE_URL="http://localhost:8080"
-EMAIL="smoketest@test.com"
+EMAIL="user13@test.com"
 PASSWORD="password123"
+PSQL="docker compose exec -T postgres psql -U MonkeyUser -d MonkeyDatabase"
 
 echo "=== 1. AUTHENTICATION & REGISTRATION ==="
 
-echo "→ Registering primary test user..."
+echo "→ Registering primary test user (409 is fine if it already exists)..."
 curl -s -X POST "$BASE_URL/auth/register" \
   -H "Content-Type: application/json" \
   -d "{\"email\": \"$EMAIL\", \"password\": \"$PASSWORD\", \"displayName\": \"Smoke Test\"}" | jq . || true
+
+echo "→ Marking the test user as verified (login refuses unverified accounts)..."
+$PSQL -c "UPDATE \"User\" SET \"emailVerified\" = true WHERE email = '$EMAIL';" > /dev/null
 
 echo "→ Logging in to get access token..."
 TOKEN=$(curl -s -X POST "$BASE_URL/auth/login" \
   -H "Content-Type: application/json" \
   -d "{\"email\": \"$EMAIL\", \"password\": \"$PASSWORD\"}" | jq -r .accessToken)
 
+if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
+  echo "Login failed for $EMAIL (not seeded, or login limit hit? run 'make seed' and wait 60s)"
+  exit 1
+fi
 echo "Token acquired successfully."
 
 echo "→ GET /auth/me (Verify JWT guard token payload)"
@@ -702,3 +710,6 @@ fi
 echo "→ GET /logs with no token at all (Expected 401)..."
 NOAUTH_LOGS_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL/logs")
 echo "Response HTTP Status (Expected 401): $NOAUTH_LOGS_CODE"
+
+docker compose exec -T postgres psql -U MonkeyUser -d MonkeyDatabase -c \
+  "UPDATE \"User\" SET role='USER' WHERE email='user1@test.com';" > /dev/null

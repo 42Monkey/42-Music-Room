@@ -1,5 +1,5 @@
-import { Injectable } from "@nestjs/common";
-import { AuthGuard } from "@nestjs/passport";
+import { Injectable } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
 
 // @nestjs/passport does the heavy work
 // extracts the header, check signature and calls the strategy's validate()
