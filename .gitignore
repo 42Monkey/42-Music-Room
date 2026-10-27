@@ -24,3 +24,6 @@ mobile/coverage/
 *.mobileprovision
 *.pem
 .DS_Store
+
+# Node downloaded by `make node` when the machine's is too old
+.node/
