@@ -3,6 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { register } from '@/api/auth';
 import { validateRegisterForm, type RegisterForm, type RegisterFormErrors } from '@/auth/authForms';
+import { GoogleButton } from '@/auth/GoogleButton';
 import { Button } from '@/components/Button';
 import { PasswordField } from '@/components/PasswordField';
 import { Screen } from '@/components/Screen';
@@ -89,6 +90,7 @@ export default function RegisterScreen() {
 					<Button label="Create account" onPress={submit} loading={loading} />
 					<ErrorText error={error} />
 				</View>
+				<GoogleButton />
 			</View>
 		</Screen>
 	);

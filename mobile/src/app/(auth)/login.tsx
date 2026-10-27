@@ -4,6 +4,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { login } from '@/api/auth';
 import { ApiError } from '@/api/errors';
 import { validateLoginForm, type LoginForm, type LoginFormErrors } from '@/auth/authForms';
+import { GoogleButton } from '@/auth/GoogleButton';
 import { Button } from '@/components/Button';
 import { PasswordField } from '@/components/PasswordField';
 import { Screen } from '@/components/Screen';
@@ -95,6 +96,7 @@ export default function LoginScreen() {
 					variant="quiet"
 					onPress={() => router.push({ pathname: '/forgot-password', params: { email: form.email.trim() } })}
 				/>
+				<GoogleButton />
 			</View>
 
 			<View style={styles.footer}>

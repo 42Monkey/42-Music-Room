@@ -90,6 +90,20 @@ const AUTH_RULES: Record<string, ErrorDescription> = {
 		title: "That code didn't work",
 		message: "Check the code in the email, or send a new one if it's old.",
 	},
+	// Google answers with 401 too: without these it would read as an ended session
+	'Invalid or expired Google ID token': {
+		title: 'Google sign-in failed',
+		message: "The server couldn't check your Google account. Try again.",
+	},
+	'Invalid Google token payload': {
+		title: 'Google sign-in failed',
+		message: "Google didn't share your email. Try again, or use another account.",
+	},
+	// Linking from the profile: one Google account belongs to one user
+	'This Google account is already linked to a different account': {
+		title: 'Google account already used',
+		message: 'This Google account is linked to someone else. Use another Google account.',
+	},
 };
 
 // Backend answers: one message per status code

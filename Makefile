@@ -15,7 +15,7 @@ BLUE   = \033[1;34m
 RESET  = \033[0m
 
 # Everything: backend, database, public link, then the app's QR code
-all: check up prisma seed tunnel mobile
+all: check up prisma seed tunnel google mobile
 
 # Stops early with a clear message when something is missing
 check:
@@ -92,6 +92,16 @@ tunnel:
 	rm -f mobile/.env.local; \
 	printf "\n$(YELLOW)⚠️  The public link did not open. The app will use the address in mobile/.env$(RESET)\n"
 
+# Google sign-in settings for the app, copied from backend/.env (git-ignored, no keys in the repo)
+google:
+	@ID=$$(sed -n 's/^GOOGLE_CLIENT_ID=//p' backend/.env); \
+	REDIRECT=$$(sed -n 's/^GOOGLE_MOBILE_REDIRECT_URL=//p' backend/.env); \
+	if [ -n "$$ID" ] && [ -n "$$REDIRECT" ]; then \
+		printf "EXPO_PUBLIC_GOOGLE_CLIENT_ID=%s\nEXPO_PUBLIC_GOOGLE_REDIRECT_URL=%s\n" "$$ID" "$$REDIRECT" >> mobile/.env.local; \
+	else \
+		printf "$(YELLOW)⚠️  Google sign-in is off: set GOOGLE_CLIENT_ID and GOOGLE_MOBILE_REDIRECT_URL in backend/.env$(RESET)\n"; \
+	fi
+
 # Links and logins, printed just before Expo's QR code
 banner:
 	@URL=$$(sed -n 's/^EXPO_PUBLIC_API_URL=//p' mobile/.env.local 2>/dev/null); \
@@ -149,4 +159,4 @@ help:
 	@printf "  make fclean  - Deep clean (stop, volumes, orphaned containers, app dependencies)\n"
 	@printf "  make re      - Full reset and restart\n\n"
 
-.PHONY: all check up down logs clean fclean prisma studio seed tunnel banner mobile status help re test k6
+.PHONY: all check up down logs clean fclean prisma studio seed tunnel google banner mobile status help re test k6
