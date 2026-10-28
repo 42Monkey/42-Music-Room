@@ -148,8 +148,11 @@ mobile: node
 	@$(MAKE) --no-print-directory banner
 	@cd mobile && ANDROID_HOME="" ANDROID_SDK_ROOT="" $(WITH_NODE) npx expo start --tunnel ngrok
 
-test:
-	npm --prefix backend test --verbose
+# Backend tests on this machine: installs the backend's packages first when missing or outdated
+test: node
+	@[ backend/node_modules/.package-lock.json -nt backend/package-lock.json ] || (printf "$(BLUE)📦 Installing backend dependencies...$(RESET)\n" \
+		&& cd backend && $(WITH_NODE) npm ci --loglevel=error --no-audit --no-fund)
+	@$(WITH_NODE) npm --prefix backend test --verbose
 
 status:
 	@echo ""
