@@ -60,19 +60,19 @@ down:
 logs:
 	docker compose logs -f
 
+# Containers, database and installed packages; images are kept so the next make is fast
 clean:
-	@printf "$(YELLOW)🧹 Stopping everything and dropping the database...$(RESET)\n"
-	@rm -rf backend/dist backend/node_modules
-	@docker rm -f $(TUNNEL) >/dev/null 2>&1 || true
-	@docker compose down -v
-	@rm -rf mobile/node_modules mobile/.expo mobile/.env.local
-	@printf "$(GREEN)✅ Containers, database and dependencies removed$(RESET)\n"
-
-fclean:
-	@printf "$(RED)💥 Deep clean...$(RESET)\n"
+	@printf "$(YELLOW)🧹 Stopping everything, dropping the database and installed packages...$(RESET)\n"
 	@docker rm -f $(TUNNEL) >/dev/null 2>&1 || true
 	@docker compose down -v --remove-orphans
-	@rm -rf mobile/node_modules mobile/.expo mobile/.env.local .node
+	@rm -rf backend/dist backend/node_modules mobile/node_modules mobile/.expo mobile/.env.local .node
+	@printf "$(GREEN)✅ Containers, database and dependencies removed (images kept)$(RESET)\n"
+
+# clean + every image the project built or downloaded (the next make rebuilds from scratch)
+fclean: clean
+	@printf "$(RED)💥 Removing the project's Docker images...$(RESET)\n"
+	@docker compose down --rmi all >/dev/null 2>&1 || true
+	@docker image rm grafana/k6:latest cloudflare/cloudflared:latest >/dev/null 2>&1 || true
 	@printf "$(GREEN)✅ Clean state restored$(RESET)\n"
 
 prisma:
@@ -174,8 +174,8 @@ help:
 	@echo "  make test     - Run backend logical/unit tests"
 	@echo "  make k6       - Run the k6 load-testing suite"
 	@echo "  make throttle - Run the throttle testing suite"
-	@echo "  make clean    - Stop containers and remove build artifacts & volumes"
-	@echo "  make fclean   - Deep clean (stop, remove volumes, and orphaned containers)"
+	@echo "  make clean    - Stop everything, delete the database and installed packages (keeps images)"
+	@echo "  make fclean   - clean + delete the Docker images (next make rebuilds everything)"
 	@echo "  make re       - Full reset and restart (fclean -> up -> prisma)\n"
 
 .PHONY: all check node up down logs clean fclean prisma studio seed tunnel google banner mobile status help re test k6
