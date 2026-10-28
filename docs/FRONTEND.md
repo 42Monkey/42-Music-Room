@@ -6,6 +6,7 @@
 
 - `make` at the root: backend, database, public link, then the Expo QR code. Scan it with Expo Go, or press `i` for the iOS simulator
 - test logins are printed just above the QR code (`user1@test.com` ...)
+- iPhone: Expo Go and the Expo CLI have to be signed in to the same Expo account, once per Mac: `cd mobile && npx expo login`. The iOS Simulator and Android don't need it
 - tunnel mode: `r`, fast refresh and `j` never reach the app. Reload by hand: Cmd+R in the simulator (Cmd+D then Reload), shake a phone
 - every `make` gives the backend a new public address, so you're logged out once (a login only goes back to the server that issued it)
 - if the tunnel dies (Mac asleep, Wi-Fi drop), the app says it can't reach the server: restart `make`
