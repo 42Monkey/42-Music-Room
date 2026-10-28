@@ -1,4 +1,3 @@
-import * as Crypto from 'expo-crypto';
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 
@@ -50,6 +49,16 @@ export function readGoogleResult(url: string, check: string): string | null {
 	return idToken;
 }
 
+// Loaded only here: Expo Go on Android (58.0.5) has no ExpoCrypto, importing it at the top
+// broke every screen that shows the Google button
+function randomCheck(): string {
+	try {
+		return (require('expo-crypto') as typeof import('expo-crypto')).randomUUID();
+	} catch {
+		throw new Error("Google sign-in isn't available in this version of Expo Go.");
+	}
+}
+
 // Opens Google in the browser and waits for the redirect page to send the user back.
 // null when the user closes the browser
 export async function getGoogleIdToken(): Promise<string | null> {
@@ -57,7 +66,7 @@ export async function getGoogleIdToken(): Promise<string | null> {
 	if (!clientId || !redirectUrl) {
 		throw new Error("Google sign-in isn't set up. Add the Google settings to backend/.env and run make again.");
 	}
-	const check = Crypto.randomUUID();
+	const check = randomCheck();
 	const returnUrl = Linking.createURL('google');
 	const result = await WebBrowser.openAuthSessionAsync(googleAuthUrl(check, returnUrl), returnUrl);
 	if (result.type !== 'success') return null;
