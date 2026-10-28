@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Linking, View, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
+import { AboveSheets } from './AboveSheets';
 import { describeError } from './describeError';
 import { Dialog, type DialogOptions } from './Dialog';
 import { Toast, type ToastData, type ToastKind } from './Toast';
@@ -76,7 +77,11 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
 		<FeedbackContext.Provider value={value}>
 			<View style={styles.fill}>
 				{children}
-				{toast && <Toast key={toast.id} toast={toast} onHide={() => setToast(null)} />}
+				{toast && (
+					<AboveSheets>
+						<Toast key={toast.id} toast={toast} onHide={() => setToast(null)} />
+					</AboveSheets>
+				)}
 			</View>
 			<Dialog dialog={dialogs[0] ?? null} onClose={closeDialog} />
 		</FeedbackContext.Provider>

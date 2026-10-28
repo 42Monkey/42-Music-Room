@@ -1,5 +1,6 @@
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors, radius, space, type } from '@/theme';
+import { AboveSheets } from './AboveSheets';
 
 export type DialogButton = {
 	label: string;
@@ -25,36 +26,46 @@ export function Dialog({ dialog, onClose }: Props) {
 		button?.onPress?.();
 	};
 
+	const card = dialog && (
+		<View style={styles.card} accessibilityViewIsModal>
+			<Text style={styles.title} accessibilityRole="header">
+				{dialog.title}
+			</Text>
+			<Text style={styles.message}>{dialog.message}</Text>
+			<View style={styles.buttons}>
+				{dialog.secondary && (
+					<Pressable
+						onPress={() => press(dialog.secondary)}
+						accessibilityRole="button"
+						style={({ pressed }) => [styles.button, styles.secondary, pressed && styles.pressed]}
+					>
+						<Text style={styles.secondaryText}>{dialog.secondary.label}</Text>
+					</Pressable>
+				)}
+				<Pressable
+					onPress={() => press(dialog.primary)}
+					accessibilityRole="button"
+					style={({ pressed }) => [styles.button, styles.primary, pressed && styles.primaryPressed]}
+				>
+					<Text style={styles.primaryText}>{dialog.primary.label}</Text>
+				</Pressable>
+			</View>
+		</View>
+	);
+
+	// iOS can't open a Modal while a sheet is up: it stays hidden and its backdrop eats every touch
+	if (Platform.OS === 'ios') {
+		if (!dialog) return null;
+		return (
+			<AboveSheets>
+				<View style={[StyleSheet.absoluteFill, styles.overlay]}>{card}</View>
+			</AboveSheets>
+		);
+	}
+
 	return (
 		<Modal visible={dialog !== null} transparent animationType="fade" onRequestClose={() => press(dialog?.secondary)}>
-			<View style={styles.overlay}>
-				{dialog && (
-					<View style={styles.card} accessibilityViewIsModal>
-						<Text style={styles.title} accessibilityRole="header">
-							{dialog.title}
-						</Text>
-						<Text style={styles.message}>{dialog.message}</Text>
-						<View style={styles.buttons}>
-							{dialog.secondary && (
-								<Pressable
-									onPress={() => press(dialog.secondary)}
-									accessibilityRole="button"
-									style={({ pressed }) => [styles.button, styles.secondary, pressed && styles.pressed]}
-								>
-									<Text style={styles.secondaryText}>{dialog.secondary.label}</Text>
-								</Pressable>
-							)}
-							<Pressable
-								onPress={() => press(dialog.primary)}
-								accessibilityRole="button"
-								style={({ pressed }) => [styles.button, styles.primary, pressed && styles.primaryPressed]}
-							>
-								<Text style={styles.primaryText}>{dialog.primary.label}</Text>
-							</Pressable>
-						</View>
-					</View>
-				)}
-			</View>
+			<View style={styles.overlay}>{card}</View>
 		</Modal>
 	);
 }
