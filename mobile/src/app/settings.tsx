@@ -73,6 +73,12 @@ export default function SettingsScreen() {
 
 	const close = () => (router.canGoBack() ? router.back() : router.replace('/'));
 
+	// This sheet stays open for both sides, so close it to land on the login screen
+	const logOut = async () => {
+		await signOut();
+		close();
+	};
+
 	return (
 		<Screen title="Server" onClose={close}>
 			<Text style={styles.intro}>
@@ -113,7 +119,7 @@ export default function SettingsScreen() {
 			{status === 'signedIn' && user && (
 				<View style={[styles.section, styles.account]}>
 					<Text style={styles.accountText}>Logged in as {user.displayName}</Text>
-					<Button label="Log out" variant="danger" icon="log-out-outline" onPress={signOut} />
+					<Button label="Log out" variant="danger" icon="log-out-outline" onPress={logOut} />
 				</View>
 			)}
 		</Screen>
