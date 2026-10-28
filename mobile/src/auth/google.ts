@@ -1,4 +1,4 @@
-import * as Crypto from 'expo-crypto';
+import { uuid } from 'expo';
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 
@@ -57,7 +57,8 @@ export async function getGoogleIdToken(): Promise<string | null> {
 	if (!clientId || !redirectUrl) {
 		throw new Error("Google sign-in isn't set up. Add the Google settings to backend/.env and run make again.");
 	}
-	const check = Crypto.randomUUID();
+	// Random check made by Expo's core (secure, native): Expo Go 58.0.5 on Android has no expo-crypto
+	const check = uuid.v4();
 	const returnUrl = Linking.createURL('google');
 	const result = await WebBrowser.openAuthSessionAsync(googleAuthUrl(check, returnUrl), returnUrl);
 	if (result.type !== 'success') return null;

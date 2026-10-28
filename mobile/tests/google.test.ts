@@ -1,8 +1,8 @@
+import { uuid } from 'expo';
 import * as WebBrowser from 'expo-web-browser';
 import { getGoogleIdToken, googleAuthUrl, readGoogleResult } from '@/auth/google';
 
 // Fixed random check and Expo Go address, the browser answer is set per test
-jest.mock('expo-crypto', () => ({ randomUUID: () => 'check-1' }));
 jest.mock('expo-linking', () => ({ createURL: (path: string) => `exp://10.0.0.5:8081/--/${path}` }));
 jest.mock('expo-web-browser', () => ({ openAuthSessionAsync: jest.fn() }));
 
@@ -18,6 +18,7 @@ const state = (check: string) => JSON.stringify({ check, app: APP });
 
 // Test values, `make` writes the real ones into mobile/.env.local
 beforeEach(() => {
+	jest.spyOn(uuid, 'v4').mockReturnValue('check-1');
 	process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID = 'test-client.apps.googleusercontent.com';
 	process.env.EXPO_PUBLIC_GOOGLE_REDIRECT_URL = 'https://example.github.io/redirect/';
 });
