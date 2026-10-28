@@ -53,7 +53,7 @@ PostgreSQL is a reliable relational database that handles concurrent users safel
 Prisma ORM generates TypeScript types from the schema so invalid queries fail at compile time, not in production.
 
 - [schema.prisma](../backend/prisma/schema.prisma) is the single source of truth for the data model.
-- [seed.ts](../backend/prisma/seed.ts) populates the database with demo users, rooms and tracks for local development and evaluation.
+- [seed.ts](../backend/prisma/seed.ts) populates the database with 50 users and 10 friendships.
 
 ![](https://mermaid.ink/img/pako:eNqtV11v4jgU_SvIz7QqbSmUNxbobLaUIgpIs0JCJr6ARRJHtgPtFv772kkgDjYaNBoe0tjn-Pp--Tj9Rj4jgFoIeJfiFcfhLKqo34gFUPnO3vVPSE6jVWXy0RtZk-3umzfIZg_H1Sx8pRFxWJi-j3vW5LDf_tn3PsYlI1Mq6IIGVH45zAwnf_W9jj098qbt4wa5nbbvgxBDFlDfZel92BtYk95g6o178_dB_6eFjXof45HXGfe6pW1eOIWIiDWNPySWiXA53Rt0vcEPO4GdTm9o2steJgK4wwolleGrNQshpkFlYgMxFmLHOPkbi3UBLpgqMI6yZVPgdEmBuI1mqI8lZdGYbSAqaDSSNqctJYSxFBc9GYEAeWapiyWMaQhlUu8zphxEW5a3LHHs7TRFavPKK6EcshwhVMQB_hrgEAos7XiuHhZ9QZk1h7dYYj7hgYUELEuDHf6aRTBIwgXwAvtHsKgSJoL6Qw5L4BD54MjKgnK51iMH5nNQr8RM0glLYmJieav-YGwVgDoXLFGpurbDVukqj7iaLFGtaiCGDFxtPipV41gpED6ncTmfJ3XZqEcxbejF9vRawCUZwMbA2pTtojSaF8PJZcCwPNW2j-VFKFqVO_EIjDChiXhzFGmnwmA7pRpcXkR7ZqS_U3ojPj_hqs_kmGN_cxZmYdngpJ5ZTaSr8Aa6mx0l5gr0dJmrLxebxQBzk-luVzdMvodjg5izLSXmMTsDPFvqJJWOo68Cp-JMfUjC04K-ORSOw5bCriQLeonwGbeNx0zQcmef0o8JuVBWLVxWLaZMwtV5y9PvyJt0dIR2f4uD5ArlOd236Tlgqz_gEfadUqou2pgpzywgBLlmdnFV0uSS8dChL1vqO8oex5fuDhq3CVF3krg6H8WHwdUJEWrBpZRw8IFuLdT6_BDpnz8mGjGm_BW-TIk3vlL2-5sbtj-7WFqVGVpjMUPnxO_sZtC40tqLhFxdNI2KeZiO5mzpoqcHQBN9LKTTYNGVmhYD1_3gZBr10lRdi2t4eV1SqnH9ueNRackDOlo2yZkOpuGwSGJapKhg7Q2W1gQxzyW72D8jnGfI9tMI5KDI-30WpiYHNNqIedaORx9-ST926AyhKlpxSlBL8gSqKASuPhbVEKUHYYbkGtSljzK3SPJ5QzDf3PgsYOluB7U-xtG_KuijCc6S1Rq1ljgQapS1a_6Py4mSetvRLYhazeZDagO1vtEnat03G7e1WrP-XHu4U8-HRr2KvlCr1ry7bT7d1Z_rjbuH2n39UEX_pZvWbutPjfpT7fnx8b7xWKs_3h_-B8BWEwI?type=png)
 
@@ -68,7 +68,7 @@ Prisma ORM generates TypeScript types from the schema so invalid queries fail at
 * `Room` is a shared space tracking visibility, access rules and the currently playing track.
 * `RoomMember` is a relation table tracking who belongs to which rooms.
 * `Track` stores track details, duration and vote scores.
-* `Vote` handles upvotes and downvotes on tracks, prevents double voting.
+* `Vote` handles upvotes on tracks, removes votes and prevents double voting.
 * `Friendship` handles friend requests and connections.
 * `ActionLog` is an audit trail of user actions, endpoints, devices and IP addresses.
 
@@ -76,12 +76,12 @@ Prisma ORM generates TypeScript types from the schema so invalid queries fail at
 
 ## Authentication
 
-The authentication system handles user registration, session management, password hashing and Google OAuth.
+The authentication system handles user registration, session management, password hashing, JWT validation and mobile Google ID token verification..
 
-- [auth.module.ts](../backend/src/modules/auth/auth.module.ts) encapsulates auth controllers, services and strategies.
-- [auth.controller.ts](../backend/src/modules/auth/auth.controller.ts) handles HTTP endpoints, local login and Google OAuth callbacks.
-- [auth.service.ts](../backend/src/modules/auth/auth.service.ts) implements business logic for credentials validation, password hashing and user creation/linking.
-- [jwt.strategy.ts](../backend/src/modules/auth/strategies/jwt.strategy.ts) validates incoming JWT access tokens and check tokenVersion against the database.
+- [auth.module.ts](../backend/src/modules/auth/auth.module.ts) encapsulates auth controllers, services and token strategies.
+- [auth.controller.ts](../backend/src/modules/auth/auth.controller.ts) handles HTTP endpoints, login, token refresh and Google mobile ID token verification.
+- [auth.service.ts](../backend/src/modules/auth/auth.service.ts) implements business logic for credentials validation, password hashing, user creation, account linking and Google ID token validation.
+- [jwt.strategy.ts](../backend/src/modules/auth/strategies/jwt.strategy.ts) manages incoming JWT access token and check `tokenVersion` against the database.
 - [google.strategy.ts](../backend/src/modules/auth/strategies/google.strategy.ts) manages Google OAuth integration and profile retrieval.
 
 <details>
@@ -114,10 +114,10 @@ GOOGLE_CALLBACK_URL=http://localhost:3000/auth/google/callback
 
 Collaborative music rooms need instant updates. When a user votes, adds a track, or changes playback, everyone in the room should see the change right away, without any delay or overhead of asking the server for updates.
 
-To do this, we use WebSockets, which keep a persistent, low-latency connection open between the client and server. Each Socket.IO room maps 1:1 to a domain `Room`, so broadcasts are scoped to actual room members only.
+To do this, we use WebSockets, which keep a persistent, low-latency connection open between the client and server. Each Socket.IO room maps 1:1 to an active room session, and broadcasts are scoped to everyone currently viewing or connected to that room.
 
 - [rooms.gateway.ts](../backend/src/modules/rooms/rooms.gateway.ts) defines the WebSocket gateway, event handlers (`joinRoom`, `leaveRoom`) and event listeners (`room.tracks.updated`, `room.playback.next`).
-- [ws-jwt.guard.ts](../backend/src/modules/auth/guards/ws-jwt.guard.ts) authenticates sockets via JWT on connection, rejecting unauthenticated clients before they can subscribe to any room.
+- [ws-jwt.guard.ts](../backend/src/modules/auth/guards/ws-jwt.guard.ts) authenticates sockets via JWT when handling event actions, ensuring unauthenticated clients cannot participate or join rooms.
 - [redis-io.adapter.ts](../backend/src/redis-io.adapter.ts) is a custom Redis adapter that broadcasts events across multiple backend instances, ensuring a vote on `api-1` reaches listeners on `api-2` and `api-3`.
 
 ![](https://mermaid.ink/img/pako:eNqNVNFuGjEQ_JWVHwpVDxoCx3H3EImmUZtIVauEJlLFi7E34HLY1PbRUMS_d-8MBARFvRdsM7M7M155xYSRyDLm8FeBWuBHxceWz4Ya6Jtz65VQc649XOcK6Ye77eo9fL89hn3iHn_zZYm7N2bmtgcnkAW3ssQ9PUC_8JNwcIx7WIjXag9oF0rgMeoepXIVrlr0JZ97tEMdkBaFBzse1dsXEXRaEcTp2_BP-WnjEcwC7cZaFKRkcG20JqYyGt7AZ66lm_ApvhIDvHF1tTG5Y0B9hwZO3jLwZop6r-eGUXJDr0e06nkJd08DGJTYPWgJaOx3eeS5kmR_mRsuoS4qGc3CkQPuPRcTlCdaUYUg-MDYjfN8lCtHnEBBLY9iiymybhxBLz4bG11VBndGaaXHwKsrOxfWzUx5qP0kfImsQX0Flha3EtYnk6rKPystv2p8VE6NchyYeqBEUNq_3fdN8IPU-kKgo4G0NC9bs4cNtvE4I6bom6Wyeq2sn9Xg3Ubb-WDv0RdWwwpwUe0rdyiDv_W_A_7PuayGu-zC88ZAzRA-WJoAwZ1354Ku98Nde6vGY7QOFCVgNc-DzJNhb1p9K6rhAC6sofBEXjiikjSJey0r8EHYO2E0-VVyICachi4_G1-YCG-5mLqsmEtCyBoYC7V5zpcjOs40vvjaLkgWsbFVkmXeFhixGdoZL7dsVUKGzE9whkOW0dKiLF4akttpQ5jc2CEb6jXx6fn4Qfq2JawpxhOWPfPc0S5o2DyKu1NLndFem0J7ll12e1URlq3YC8vacbeZtC46SZq0u-3LXitiSwLFabPTS5NWHCfdVtJK1xH7U3W9aHbStHPR6bUuk14vbadJxChNb-yX8DJXD_T6L9TYzRg?type=png)
@@ -135,7 +135,7 @@ When multiple people are in the same music room voting, adding tracks or changin
 
 To prevent race conditions and make sure data stays correct, we use:
 
-- Database transaction (`Prisma.$transaction`) when a user votes or updates a queue. It wraps the database operations in a transaction. This ensures that either all database changes succeed together or fail together.
+- Database transaction (`Prisma.$transaction`) when a user votes, unvotes or playback next. It wraps the database operations in a transaction. This ensures that either all database changes succeed together or fail together.
 - Redis for multi-server sync. Since the app can run on multiple backend instances, a user action on one instance needs to reach everyone else. Redis handles this by broadcasting messages across all instances instantly.
 - Rate limiting to stop users from spamming buttons or flooding routes too fast. We use NestJS throttlers to limit how many requests a client can send in a given timeframe.
 
@@ -149,7 +149,7 @@ To prevent race conditions and make sure data stays correct, we use:
 
 ## Audit
 
-To keep track of what's happening in the application and troubleshoot issues quickly, we maintain an activity audit log, as required by the subject. Every important action (HTTP requests or WebSocket events) is recorded with metadata (IP address, platform and user info).
+To keep track of what's happening in the application and troubleshoot issues quickly, the application have an activity audit log. Read requests are excluded, only mutation actions (add track, voting, moving track, join/leve room) are recorded with context (IP address, platform and user info).
 
 ```bash
 # to check the logs
