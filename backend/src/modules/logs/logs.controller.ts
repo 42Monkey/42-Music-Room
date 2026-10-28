@@ -9,6 +9,7 @@ import {
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AdminGuard } from './guards/admin.guard';
 import { LogsService } from './logs.service';
+import { ActionLogResponseDto } from './dto/log-response.dto';
 
 @ApiTags('Logs')
 @ApiBearerAuth('access-token')
@@ -24,7 +25,12 @@ export class LogsController {
     required: false,
     description: 'Max rows to return (default 50)',
   })
-  @ApiResponse({ status: 200, description: 'Recent action log entries' })
+  @ApiResponse({
+    status: 200,
+    description: 'Recent action log entries',
+    type: ActionLogResponseDto,
+    isArray: true,
+  })
   @ApiResponse({ status: 403, description: 'Admin access required' })
   findRecent(@Query('limit') limit?: string) {
     const parsed = limit ? parseInt(limit, 10) : undefined;

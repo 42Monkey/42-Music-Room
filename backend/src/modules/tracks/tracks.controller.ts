@@ -26,6 +26,7 @@ import { TracksService } from './tracks.service';
 import { AddTrackDto } from './dto/add-track.dto';
 import { ReorderTrackDto } from './dto/reorder-track.dto';
 import { SearchTracksDto } from './dto/search-track.dto';
+import { TrackResponseDto, TrackMessageResponseDto } from './dto/track-response.dto';
 import type { Request } from 'express';
 
 interface AuthenticatedUser {
@@ -45,7 +46,7 @@ export class TracksController {
   @ApiOperation({ summary: 'Add a track to the room queue' })
   @ApiParam({ name: 'roomId', description: 'Room id' })
   @ApiBody({ type: AddTrackDto })
-  @ApiResponse({ status: 201, description: 'Track added to queue' })
+  @ApiResponse({ status: 201, description: 'Track added to queue', type: TrackResponseDto })
   addTrack(@Param('roomId') roomId: string, @Body() dto: AddTrackDto) {
     return this.tracksService.addTrack(roomId, dto.deezerTrackId);
   }
@@ -55,7 +56,7 @@ export class TracksController {
   @ApiOperation({ summary: 'Remove a track from the queue' })
   @ApiParam({ name: 'roomId', description: 'Room id' })
   @ApiParam({ name: 'trackId', description: 'Track id in room queue' })
-  @ApiResponse({ status: 200, description: 'Track removed' })
+  @ApiResponse({ status: 200, description: 'Track removed', type: TrackMessageResponseDto })
   removeTrack(
     @Param('roomId') roomId: string,
     @Param('trackId') trackId: string,
@@ -68,7 +69,7 @@ export class TracksController {
   @ApiOperation({ summary: 'Vote for a track' })
   @ApiParam({ name: 'roomId', description: 'Room id' })
   @ApiParam({ name: 'trackId', description: 'Track id in room queue' })
-  @ApiResponse({ status: 201, description: 'Vote added' })
+  @ApiResponse({ status: 201, description: 'Vote added', type: TrackResponseDto })
   vote(
     @Param('roomId') roomId: string,
     @Param('trackId') trackId: string,
@@ -82,7 +83,7 @@ export class TracksController {
   @ApiOperation({ summary: 'Remove a vote from a track' })
   @ApiParam({ name: 'roomId', description: 'Room id' })
   @ApiParam({ name: 'trackId', description: 'Track id in room queue' })
-  @ApiResponse({ status: 200, description: 'Vote removed' })
+  @ApiResponse({ status: 200, description: 'Vote removed', type: TrackResponseDto })
   unvote(
     @Param('roomId') roomId: string,
     @Param('trackId') trackId: string,
@@ -94,7 +95,12 @@ export class TracksController {
   @Get()
   @ApiOperation({ summary: 'Get the current room queue' })
   @ApiParam({ name: 'roomId', description: 'Room id' })
-  @ApiResponse({ status: 200, description: 'Queue returned, votedByMe says if the caller voted for each track' })
+  @ApiResponse({
+    status: 200,
+    description: 'Queue returned, votedByMe says if the caller voted for each track',
+    type: TrackResponseDto,
+    isArray: true
+  })
   getQueue(
       @Param('roomId') roomId: string,
       @Req() req: Request & { user: AuthenticatedUser },
@@ -108,7 +114,7 @@ export class TracksController {
   @ApiParam({ name: 'roomId', description: 'Room id' })
   @ApiParam({ name: 'trackId', description: 'Track id in room queue' })
   @ApiBody({ type: ReorderTrackDto })
-  @ApiResponse({ status: 200, description: 'Queue reordered' })
+  @ApiResponse({ status: 200, description: 'Queue reordered', type: TrackResponseDto, isArray: true })
   reorder(
     @Param('roomId') roomId: string,
     @Param('trackId') trackId: string,
@@ -129,7 +135,7 @@ export class TracksController {
     required: true,
     description: 'Track search query',
   })
-  @ApiResponse({ status: 200, description: 'Matching tracks returned' })
+  @ApiResponse({ status: 200, description: 'Matching tracks returned', type: TrackResponseDto, isArray: true })
   searchTracks(@Param('roomId') roomId: string, @Query() dto: SearchTracksDto) {
     return this.tracksService.searchTracks(dto.query);
   }
@@ -138,7 +144,7 @@ export class TracksController {
   @UseGuards(AccessPolicyGuard)
   @ApiOperation({ summary: 'Advance to the next track in the room' })
   @ApiParam({ name: 'roomId', description: 'Room id' })
-  @ApiResponse({ status: 200, description: 'Next track triggered' })
+  @ApiResponse({ status: 200, description: 'Next track triggered', type: TrackResponseDto, nullable: true })
   triggerNext(
     @Param('roomId') roomId: string,
     @Req() req: Request & { user: AuthenticatedUser },

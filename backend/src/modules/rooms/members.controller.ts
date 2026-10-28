@@ -19,6 +19,7 @@ import {
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { MembersService } from './members.service';
 import { InviteMemberDto } from './dto/invite.dto';
+import { MemberResponseDto, MemberMessageResponseDto } from './dto/member-response.dto';
 import type { Request } from 'express';
 
 interface AuthenticatedUser {
@@ -37,7 +38,7 @@ export class MembersController {
   @ApiOperation({ summary: 'Invite a member to a room' })
   @ApiParam({ name: 'roomId', description: 'Room id' })
   @ApiBody({ type: InviteMemberDto })
-  @ApiResponse({ status: 201, description: 'Member invited' })
+  @ApiResponse({ status: 201, description: 'Member invited', type: MemberResponseDto })
   invite(
     @Param('roomId') roomId: string,
     @Req() req: Request & { user: AuthenticatedUser },
@@ -50,7 +51,7 @@ export class MembersController {
   @ApiOperation({ summary: 'Remove a member from a room' })
   @ApiParam({ name: 'roomId', description: 'Room id' })
   @ApiParam({ name: 'userId', description: 'Member user id' })
-  @ApiResponse({ status: 200, description: 'Member removed' })
+  @ApiResponse({ status: 200, description: 'Member removed', type: MemberMessageResponseDto })
   remove(
     @Param('roomId') roomId: string,
     @Param('userId') targetUserId: string,
@@ -62,7 +63,7 @@ export class MembersController {
   @Get()
   @ApiOperation({ summary: 'List room members' })
   @ApiParam({ name: 'roomId', description: 'Room id' })
-  @ApiResponse({ status: 200, description: 'Room members returned' })
+  @ApiResponse({ status: 200, description: 'Room members returned', type: MemberResponseDto, isArray: true })
   list(
     @Param('roomId') roomId: string,
     @Req() req: Request & { user: AuthenticatedUser },

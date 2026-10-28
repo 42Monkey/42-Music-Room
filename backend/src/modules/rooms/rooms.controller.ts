@@ -21,6 +21,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RoomsService } from './rooms.service';
 import { CreateRoomDto } from './dto/create.dto';
 import { UpdateRoomDto } from './dto/update.dto';
+import { RoomResponseDto, RoomMessageResponseDto } from './dto/room-response.dto';
 import { AccessPolicyGuard } from './guards/access.guard';
 import type { Request } from 'express';
 
@@ -39,7 +40,7 @@ export class RoomsController {
   @Post()
   @ApiOperation({ summary: 'Create a new room' })
   @ApiBody({ type: CreateRoomDto })
-  @ApiResponse({ status: 201, description: 'Room created' })
+  @ApiResponse({ status: 201, description: 'Room created', type: RoomResponseDto })
   create(
     @Req() req: Request & { user: AuthenticatedUser },
     @Body() dto: CreateRoomDto,
@@ -49,7 +50,7 @@ export class RoomsController {
 
   @Get()
   @ApiOperation({ summary: 'List rooms visible to the authenticated user' })
-  @ApiResponse({ status: 200, description: 'Rooms list returned' })
+  @ApiResponse({ status: 200, description: 'Rooms list returned', type: RoomResponseDto, isArray: true })
   findAll(@Req() req: Request & { user: AuthenticatedUser }) {
     return this.roomsService.findAllVisibleTo(req.user.id);
   }
@@ -57,7 +58,7 @@ export class RoomsController {
   @Get(':id')
   @ApiOperation({ summary: 'Get a room by id' })
   @ApiParam({ name: 'id', description: 'Room id' })
-  @ApiResponse({ status: 200, description: 'Room returned' })
+  @ApiResponse({ status: 200, description: 'Room returned', type: RoomResponseDto })
   findOne(
     @Param('id') id: string,
     @Req() req: Request & { user: AuthenticatedUser },
@@ -69,7 +70,7 @@ export class RoomsController {
   @ApiOperation({ summary: 'Update a room' })
   @ApiParam({ name: 'id', description: 'Room id' })
   @ApiBody({ type: UpdateRoomDto })
-  @ApiResponse({ status: 200, description: 'Room updated' })
+  @ApiResponse({ status: 200, description: 'Room updated', type: RoomResponseDto })
   update(
     @Param('id') id: string,
     @Req() req: Request & { user: AuthenticatedUser },
@@ -81,7 +82,7 @@ export class RoomsController {
   @Delete(':id')
   @ApiOperation({ summary: 'Delete a room' })
   @ApiParam({ name: 'id', description: 'Room id' })
-  @ApiResponse({ status: 200, description: 'Room deleted' })
+  @ApiResponse({ status: 200, description: 'Room deleted', type: RoomMessageResponseDto })
   remove(
     @Param('id') id: string,
     @Req() req: Request & { user: AuthenticatedUser },
@@ -94,6 +95,7 @@ export class RoomsController {
   @UseGuards(AccessPolicyGuard)
   @ApiOperation({ summary: 'Check room access policy' })
   @ApiParam({ name: 'roomId', description: 'Room id' })
+  @ApiResponse({ status: 200, description: 'Access granted', type: RoomMessageResponseDto })
   testAccess() {
     return { message: 'Access granted' };
   }
