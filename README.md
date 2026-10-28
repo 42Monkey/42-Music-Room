@@ -120,6 +120,5 @@ Builds and starts the backend, creates the database and the test accounts, opens
 ## Docs
 
 - [`docs/BACKEND.md`](docs/BACKEND.md): API, database, auth, real time, concurrency, logs, load test
-- [`mobile/README.md`](mobile/README.md): the app, how each feature works
-- [`docs/FRONTEND.md`](docs/FRONTEND.md): working in the app's code
+- [`docs/FRONTEND.md`](docs/FRONTEND.md): the app, how each feature works (with links to the code), working in the code
 - Swagger: `http://localhost:8080/docs`
