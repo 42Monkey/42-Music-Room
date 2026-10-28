@@ -126,7 +126,7 @@ mobile:
 		&& cd mobile && npm ci --loglevel=error --no-audit --no-fund)
 	@clear 2>/dev/null || true
 	@$(MAKE) --no-print-directory banner
-	@cd mobile && npx expo start --tunnel
+	@cd mobile && ANDROID_HOME="" ANDROID_SDK_ROOT="" npx expo start --tunnel
 
 test:
 	npm --prefix backend test --verbose
