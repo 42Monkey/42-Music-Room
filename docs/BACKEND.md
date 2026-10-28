@@ -155,24 +155,38 @@ To prevent race conditions and make sure data stays correct, we use:
 
 ![](https://mermaid.ink/img/pako:eNqNlF1v2jAUhv_KkTUJJgWGQwIhF5VKmbjZpraMIW3swiSnYDWxmT9YacV_30mgBa2om6_y8Zz3PR-2n1imc2Qps_jLo8pwJMXSiHKugNZaGCczuRbKwZSDsDC1aIBDU6xli78_Q4UvVLinwjPUeFZRt1qXFsbC4W-xfQ2NhhV0ra1bGpzcfILmtZG2FGf0bjGXtpasH6794sPEL-ZqTxrMHJjlotntBBDxAOLBQaNaSjsEvaGEp_RrNExhIktfOKFQ-0qR-mKdPQZMeeviYjxL4WMpHTQ2FH8lrGtA0xmR3cPlifg0_D8WVf4q25jS6cUBJPHZbMezfbaXTpcyg69GKCsyJ7U60uMZ2VfQuu5c-507Us0ffp1T77-Rog1gie7Go8efJ2ajYeuQ_ok6ZLqkYhzmYH2WobV3vii20PyigWpC-q9yWZH2jeL-MYqquHqWNI2tylZGK_kozhR3gGjihbQraNRttem-tLwBuEHljjE1_lzU0GiRZzQOcBpEUcCCYilZkMrS-Km0wz4P4HQjH7xJZMqfB_uX7SswfBMkTxawpZE5S53xGLASTSmqV_ZUIXPmVljinKX0aDD3D61cmPtWpgtt5myudhRPJ-E7nahnCaP9csXSO1FYetsbHg73y1dDzmiutFeOpTyJahGWPrEHlkZJm4dJFEW9Pu91O0kvYFuWdsOoHXGeDOJ-zAdxl-8C9li7dtqDfmfQDzvJgIedbjdKAkbddtp83t8w9UWz-wMY2F25?type=png)
 
-- `prisma.service.ts` handles database client connections and transaction blocks.
-- `redis-io.adapter.ts` syncs real-time events across multiple servers instances.
-- `rooms.gateway.ts` manages incoming WebSocket messages and room broadcasts safely.
+- [prisma.service.ts](../backend/src/prisma/prisma.service.ts) handles database client connections and transaction blocks.
+- [redis-io.adapter.ts](../backend/src/redis-io.adapter.ts) syncs real-time events across multiple servers instances.
+- [rooms.gateway.ts](../backend/src/modules/rooms/rooms.gateway.ts) manages incoming WebSocket messages and room broadcasts safely.
 
 ---
 
 ## Audit
 
+To keep track of what's happening in the application and troubleshoot issues quickly, we maintain an activity audit log, as the subject requires. Every important action (HTTP requests or WebSocket events) is recorded with metadata (IP address, platform and user info).
+
+```bash
+# to check the logs
+
+docker compose up --build
+```
+
+- [logs.controller.ts](../backend/src/modules/logs/logs.controller.ts)
+- [logs.service.ts](../backend/src/modules/logs/logs.service.ts)
+- [admin.guard.ts](../backend/src/modules/logs/guards/admin.guard.ts)
+
 ---
 
 ## Infrastructure
+
+// To do
+
+- [docker-compose.yml](../docker-compose.yml)
+- [backend - dockerfile](../backend/Dockerfile)
+- [.env.example](../backend/.env.example)
 
 ---
 
 ## Testing + Performance
 
----
-
-## References
-
-
+// To Do
