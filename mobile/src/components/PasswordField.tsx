@@ -1,5 +1,5 @@
 import { useState, type Ref } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View, type TextInputInstance, type TextInputProps } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { ErrorText } from '@/feedback/ErrorText';
 import { colors, radius, space, type } from '@/theme';
@@ -8,7 +8,7 @@ type Props = Omit<TextInputProps, 'secureTextEntry'> & {
 	label: string;
 	error?: string | null;
 	hint?: string;
-	ref?: Ref<TextInput>;
+	ref?: Ref<TextInputInstance>;
 };
 
 // Password input with a show / hide button, same look as TextField

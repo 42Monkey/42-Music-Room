@@ -7,6 +7,12 @@ SEED   = backend/prisma/seed.ts
 SEED_PASSWORD = $(shell sed -n "s/.*SEED_PASSWORD = '\(.*\)'.*/\1/p" $(SEED) 2>/dev/null)
 SEED_USERS    = $(shell grep -o "i < [0-9]*" $(SEED) 2>/dev/null | head -1 | grep -o "[0-9]*")
 
+# Node for the app (Expo SDK 58 needs 22.13+). When the machine's Node is older,
+# `make node` downloads this one into .node/ (git-ignored, no sudo needed)
+NODE_VERSION = v22.23.3
+NODE_DIR     = $(CURDIR)/.node
+WITH_NODE    = PATH="$(NODE_DIR)/bin:$$PATH"
+
 # Colors
 GREEN  = \033[1;32m
 RED    = \033[1;31m
@@ -15,16 +21,28 @@ BLUE   = \033[1;34m
 RESET  = \033[0m
 
 # Everything: backend, database, public link, then the app's QR code
-all: check up prisma seed tunnel google mobile
+all: check node up prisma seed tunnel google mobile
 
 # Stops early with a clear message when something is missing
 check:
 	@docker info >/dev/null 2>&1 || (printf "$(RED)❌ Docker is not running. Start Docker, then run make again.$(RESET)\n" && exit 1)
 	@[ -f backend/.env ] || (printf "$(RED)❌ backend/.env is missing. Copy backend/.env.example to backend/.env and fill it in.$(RESET)\n" && exit 1)
-	@command -v node >/dev/null 2>&1 || (printf "$(RED)❌ Node.js is missing. Install Node 20.19 or newer, then run make again.$(RESET)\n" && exit 1)
-	@node -e "const [a,b]=process.versions.node.split('.').map(Number); process.exit(a>20||(a===20&&b>=19)?0:1)" \
-		|| (printf "$(RED)❌ Node $$(node -v) is too old. Install Node 20.19 or newer.$(RESET)\n" && exit 1)
-	@printf "$(GREEN)✅ Docker, backend/.env and Node ready$(RESET)\n"
+	@printf "$(GREEN)✅ Docker and backend/.env ready$(RESET)\n"
+
+# Uses the machine's Node when it is 22.13+, otherwise downloads Node $(NODE_VERSION)
+node:
+	@if $(WITH_NODE) node -e "const [a,b]=process.versions.node.split('.').map(Number); process.exit(a>22||(a===22&&b>=13)?0:1)" 2>/dev/null; then \
+		printf "$(GREEN)✅ Node $$($(WITH_NODE) node -v) ready$(RESET)\n"; \
+	else \
+		case "$$(uname -s)" in Darwin) OS=darwin ;; *) OS=linux ;; esac; \
+		case "$$(uname -m)" in arm64|aarch64) ARCH=arm64 ;; *) ARCH=x64 ;; esac; \
+		printf "$(BLUE)📦 Node 22.13+ not found, downloading Node $(NODE_VERSION)...$(RESET)\n"; \
+		rm -rf "$(NODE_DIR)" && mkdir -p "$(NODE_DIR)" && \
+		curl -fsSL "https://nodejs.org/dist/$(NODE_VERSION)/node-$(NODE_VERSION)-$$OS-$$ARCH.tar.gz" \
+			| tar -xz -C "$(NODE_DIR)" --strip-components=1 \
+		|| (rm -rf "$(NODE_DIR)"; printf "$(RED)❌ Could not download Node. Install Node 22.13 or newer, then run make again.$(RESET)\n"; exit 1); \
+		printf "$(GREEN)✅ Node $$($(WITH_NODE) node -v) ready$(RESET)\n"; \
+	fi
 
 up:
 	@printf "$(BLUE)🎵 Launching backend containers...$(RESET)\n"
@@ -54,7 +72,7 @@ fclean:
 	@printf "$(RED)💥 Deep clean...$(RESET)\n"
 	@docker rm -f $(TUNNEL) >/dev/null 2>&1 || true
 	@docker compose down -v --remove-orphans
-	@rm -rf mobile/node_modules mobile/.expo mobile/.env.local
+	@rm -rf mobile/node_modules mobile/.expo mobile/.env.local .node
 	@printf "$(GREEN)✅ Clean state restored$(RESET)\n"
 
 prisma:
@@ -121,12 +139,14 @@ banner:
 	printf "     make help        Every command\n\n"
 
 # App dependencies (errors only), clean screen, banner, then Expo and its QR code
-mobile:
-	@[ -d mobile/node_modules ] || (printf "$(BLUE)📦 Installing app dependencies...$(RESET)\n" \
-		&& cd mobile && npm ci --loglevel=error --no-audit --no-fund)
+# Reinstalls when package-lock.json is newer than the installed packages (e.g. after a pull)
+# ngrok tunnel: Expo's default tunnel needs an Expo account login
+mobile: node
+	@[ mobile/node_modules/.package-lock.json -nt mobile/package-lock.json ] || (printf "$(BLUE)📦 Installing app dependencies...$(RESET)\n" \
+		&& cd mobile && $(WITH_NODE) npm ci --loglevel=error --no-audit --no-fund)
 	@clear 2>/dev/null || true
 	@$(MAKE) --no-print-directory banner
-	@cd mobile && npx expo start --tunnel
+	@cd mobile && $(WITH_NODE) npx expo start --tunnel ngrok
 
 test:
 	npm --prefix backend test --verbose
@@ -158,4 +178,4 @@ help:
 	@echo "  make fclean   - Deep clean (stop, remove volumes, and orphaned containers)"
 	@echo "  make re       - Full reset and restart (fclean -> up -> prisma)\n"
 
-.PHONY: all check up down logs clean fclean prisma studio seed tunnel google banner mobile status help re test k6
+.PHONY: all check node up down logs clean fclean prisma studio seed tunnel google banner mobile status help re test k6

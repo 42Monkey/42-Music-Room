@@ -216,6 +216,54 @@ describe('AuthService', () => {
     });
   });
 
+  describe('verifyGoogleIdToken', () => {
+    const payload = { sub: 'g1', email: 'mia@test.com', email_verified: true, name: 'Mia' };
+    let verifyIdToken: jest.Mock;
+
+    beforeEach(() => {
+      config.get.mockReturnValue('client-id.apps.googleusercontent.com');
+      verifyIdToken = jest.fn();
+      (service as any).googleClient = { verifyIdToken };
+    });
+
+    const tokenFor = (fields: object) => verifyIdToken.mockResolvedValue({ getPayload: () => fields });
+
+    it('check a verified token returns the Google profile and is checked against the client ID', async () => {
+      tokenFor(payload);
+
+      const profile = await service.verifyGoogleIdToken('id-token');
+
+      expect(profile).toEqual({ googleId: 'g1', email: 'mia@test.com', displayName: 'Mia' });
+      expect(verifyIdToken).toHaveBeenCalledWith({
+        idToken: 'id-token',
+        audience: ['client-id.apps.googleusercontent.com'],
+      });
+    });
+
+    it('check Google sign-in is refused when GOOGLE_CLIENT_ID is missing', async () => {
+      config.get.mockReturnValue(undefined);
+
+      await expect(service.verifyGoogleIdToken('id-token')).rejects.toThrow(
+        'Google sign-in is not configured on this server',
+      );
+      expect(verifyIdToken).not.toHaveBeenCalled();
+    });
+
+    it('check a token whose email Google has not verified is refused', async () => {
+      tokenFor({ ...payload, email_verified: false });
+
+      await expect(service.verifyGoogleIdToken('id-token')).rejects.toThrow(
+        'Google has not verified the email of this account',
+      );
+    });
+
+    it('check a token without email_verified is refused', async () => {
+      tokenFor({ ...payload, email_verified: undefined });
+
+      await expect(service.verifyGoogleIdToken('id-token')).rejects.toThrow(UnauthorizedException);
+    });
+  });
+
   describe('session invalidation', () => {
     const email = 'mia@test.com';
     const resettableUser = {

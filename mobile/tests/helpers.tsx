@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react';
 import { render } from '@testing-library/react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { FeedbackProvider } from '@/feedback/FeedbackProvider';
 import { SessionProvider } from '@/session/SessionProvider';
 import { SettingsProvider } from '@/settings/SettingsProvider';
@@ -46,11 +47,13 @@ export function routeFetch(fetchMock: jest.Mock, routes: Record<string, unknown>
 // Same providers as the app, around one screen
 export function renderWithProviders(screen: ReactElement) {
 	return render(
-		<SettingsProvider>
-			<FeedbackProvider>
-				<SessionProvider>{screen}</SessionProvider>
-			</FeedbackProvider>
-		</SettingsProvider>,
+		<GestureHandlerRootView>
+			<SettingsProvider>
+				<FeedbackProvider>
+					<SessionProvider>{screen}</SessionProvider>
+				</FeedbackProvider>
+			</SettingsProvider>
+		</GestureHandlerRootView>,
 	);
 }
 

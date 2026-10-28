@@ -4,6 +4,7 @@ import {
   BadRequestException,
   Injectable,
   ForbiddenException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import * as argon2 from 'argon2';
 import * as crypto from 'crypto';
@@ -390,15 +391,22 @@ export class AuthService {
   }
 
   async verifyGoogleIdToken(idToken: string): Promise<{ googleId: string; email: string; displayName: string }> {
+    const clientId = this.config.get<string>('GOOGLE_CLIENT_ID');
+    if (!clientId) {
+      throw new ServiceUnavailableException('Google sign-in is not configured on this server');
+    }
+
     try {
-      const clientId = this.config.get<string>('GOOGLE_CLIENT_ID');
       const ticket = await this.googleClient.verifyIdToken({
         idToken,
-        audience: clientId ? [clientId] : undefined,
+        audience: [clientId],
       });
       const payload = ticket.getPayload();
       if (!payload || !payload.sub || !payload.email) {
         throw new UnauthorizedException('Invalid Google token payload');
+      }
+      if (payload.email_verified !== true) {
+        throw new UnauthorizedException('Google has not verified the email of this account');
       }
       return {
         googleId: payload.sub,
