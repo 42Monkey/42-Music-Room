@@ -146,7 +146,7 @@ mobile: node
 		&& cd mobile && $(WITH_NODE) npm ci --loglevel=error --no-audit --no-fund)
 	@clear 2>/dev/null || true
 	@$(MAKE) --no-print-directory banner
-	@cd mobile && $(WITH_NODE) npx expo start --tunnel ngrok
+	@cd mobile && ANDROID_HOME="" ANDROID_SDK_ROOT="" $(WITH_NODE) npx expo start --tunnel ngrok
 
 test:
 	npm --prefix backend test --verbose
